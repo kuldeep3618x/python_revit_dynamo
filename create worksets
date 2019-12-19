@@ -1,0 +1,23 @@
+"""Create Worksets"""
+
+__title__ = "Create\nWorksets"
+__author__= "kamlesh"
+
+
+
+from  Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Transaction, TransactionGroup, Workset
+doc = __revit__.ActiveUIDocument.Document
+
+#Creating collector instances and collect all the walls in the model
+
+
+workset_names = ['AR_Walls', 'AR_Concrete', 'AR_Interior', 'AR_SpecialityEquipment']
+
+t = Transaction(doc)
+t.Start('Create Workset')
+newWorksets = []
+for w in workset_names:
+    Workset.Create(doc, w)
+    newWorksets.append(workset_names)
+
+t.Commit()
