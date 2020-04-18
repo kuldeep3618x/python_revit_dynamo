@@ -1,23 +1,88 @@
-"""Create Worksets"""
+""""Create Worksets"""
 
 __title__ = "Create\nWorksets"
-__author__= "kamlesh"
+__author__= "J K Roshan Kerketta"
+
+import os.path as os
+from pyrevit import script
+from pyrevit import forms
 
 
+import clr
+clr.AddReference('ProtoGeometry')
+from Autodesk.DesignScript.Geometry import *
 
-from  Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Transaction, TransactionGroup, Workset
+
+# Import DocumentManager and TransactionManager
+
+clr.AddReference("RevitServices")
+import RevitServices
+from RevitServices.Persistence import DocumentManager
+from RevitServices.Transactions import TransactionManager
+
+import Autodesk.Revit.DB as DB
+from  Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Transaction, TransactionGroup, Workset, SpatialElement
+from Autodesk.Revit.DB import FilteredWorksetCollector, WorksetKind, Element
+
 doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
 
-#Creating collector instances and collect all the walls in the model
+####################################################################################################################
+
+logger = script.get_logger()
+# if__name__ == '__main__':
+source_file = forms.pick_file(file_ext='xls')
+
+####################################################################################################################
+
+# Reading an excel file using Python 
+
+import xlrd 
+from xlrd import open_workbook 
+
+# Give the location of the file 
+
+loc = source_file
+  
+# To open Workbook 
+wb = xlrd.open_workbook(loc) 
+
+# sheet = wb.sheet_by_index(0)    #ARCHITECTURE
+# sheet = wb.sheet_by_index(1)      #SKIN
+sheet = wb.sheet_by_index(2)      #INTERIOR
+# sheet = wb.sheet_by_index(3)    #SIGNAGE
+
+####################################################################################################################
 
 
-workset_names = ['AR_Walls', 'AR_Concrete', 'AR_Interior', 'AR_SpecialityEquipment']
+collector = FilteredWorksetCollector(doc)
+worksets_in_current_doc = collector.OfKind(WorksetKind.UserWorkset).ToWorksets()
 
+# print(worksets_in_current_doc)
+
+workset_names_in_current_doc = [(workset.Name) for workset in worksets_in_current_doc]
+# print(workset_names_in_current_doc)
+
+#Workset Names in Excel file
+
+workset_names = sheet.col_values(1)
+
+####################################################################################################################
+
+
+# Filtered Workset Names 
+
+filtered_Worksets = [w for w in workset_names if w not in workset_names_in_current_doc]
+print(filtered_Worksets)
+
+####################################################################################################################
 t = Transaction(doc)
 t.Start('Create Workset')
 newWorksets = []
-for w in workset_names:
+for w in filtered_Worksets:
     Workset.Create(doc, w)
     newWorksets.append(workset_names)
 
 t.Commit()
+
+####################################################################################################################
