@@ -1,11 +1,22 @@
 """Occupancy Calcuations"""
 
 __title__ = "Occupancy\nCalculations"
-__author__= "kamlesh"
+__author__= "J K Roshan\nKerketta"
 
 from pyrevit.coreutils import envvars
 from decimal import *
+from pyrevit import forms
+from pyrevit import script
+from pyrevit import coreutils
+from itertools import chain
 
+
+#Select Excel File from Folder
+
+logger = script.get_logger()
+# if__name__ == '__main__':
+source_file = forms.pick_file(file_ext='xls')
+ 
 ####################################################################################################################
 
 import Autodesk.Revit.DB as DB
@@ -22,7 +33,7 @@ import xlrd
 from xlrd import open_workbook 
 
 # Give the location of the file 
-loc = ('C:\Users\A\Desktop\python_examples\AMI OCCUPANCY TABLE.xls') 
+loc = source_file
   
 # To open Workbook 
 wb = xlrd.open_workbook(loc) 
@@ -204,7 +215,6 @@ def set_parameter_by_name(element, parameterName, value):
 	element.LookupParameter(parameterName).Set(value)
  
  
- 
 ######################################################################################################################
 
 #Start Transaction
@@ -222,6 +232,6 @@ for r in Room_filtered:
        
 t.Commit()     
 # print(write_oc_pass)
-print(write_oc_fail)                
+# print(write_oc_fail)                
 
 ######################################################################################################################
