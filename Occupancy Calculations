@@ -88,7 +88,7 @@ rooms = all_elements_of_category(BuiltInCategory.OST_Rooms)
 occupant_load_rooms = list()
 for room in rooms:
     for param in room.Parameters:
-        if param.IsShared and param.Definition.Name == 'ali':   #Change Parameter to assign the Occupant Load
+        if param.IsShared and param.Definition.Name == 'ali':   #Change Parameter to read the Occupant Load
             paramValue = room.get_Parameter(param.GUID)
             occupant_load_rooms.append(paramValue.AsString())
 # print(occupant_load_rooms)
@@ -226,7 +226,7 @@ write_oc_fail = list()
 t.Start()
 for r in Room_filtered:
     try:
-        write_oc_pass = [ set_parameter_by_name(r,'SWAP',oc) for r,oc in zip(Room_filtered, occupant_count)]
+        write_oc_pass = [ set_parameter_by_name(r,'SWAP',oc) for r,oc in zip(Room_filtered, occupant_count)] #Change the parameter for writing Occupant Count
     except:
         write_oc_fail.append(oc)
        
