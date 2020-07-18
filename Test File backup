@@ -1,0 +1,644 @@
+"""Door Detail Parameters"""
+
+__title__ = "Test"
+__author__= "J K Roshan\nKerketta"
+
+from pyrevit.coreutils import envvars
+from decimal import *
+from pyrevit import forms
+from pyrevit import script
+from pyrevit import coreutils
+from itertools import chain
+from itertools import islice
+
+####################################################################################################################
+
+import Autodesk.Revit.DB as DB
+from  Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Transaction, TransactionGroup, Workset, SpatialElement
+from Autodesk.Revit.DB import FilteredWorksetCollector, WorksetKind, Element
+
+doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
+
+####################################################################################################################
+
+from pyrevit import HOST_APP
+from pyrevit import revit, DB
+
+import math
+import itertools
+####################################################################################################################
+
+#Select Excel File from Folder
+
+logger = script.get_logger()
+# if__name__ == '__main__':
+source_file = forms.pick_file(file_ext='xlsx')
+
+# Reading an excel file using Python 
+import xlrd 
+from xlrd import open_workbook 
+
+# Give the location of the file 
+loc = source_file
+  
+# To open Workbook 
+wb = xlrd.open_workbook(loc) 
+sheet = wb.sheet_by_index(0) 
+
+#####################################################################################################################
+# Read Excel Parameters and Family Category
+
+identifier_param_to_read = sheet.col_values(5)
+# print(category_param_to_read)
+
+def str_parameters(_paraVal):
+    	for x in _paraVal:
+		return str(x)		
+
+identifier_params = str_parameters(identifier_param_to_read)
+
+function_param_to_read = sheet.col_values(5)
+door_Leaf_Number = sheet.col_values(6)
+door_equal_leaves = sheet.col_values(7)
+door_Leaf_Width = sheet.col_values(8)
+door_Leaf_Height = sheet.col_values(9)
+door_Undercut = sheet.col_values(10)
+door_host_fire_rating = sheet.col_values(21)
+door_fire_rating = sheet.col_values(22)
+door_acoustics_rating = sheet.col_values(23)
+door_Leaf_Material = sheet.col_values(12)
+door_Frame_Material = sheet.col_values(16)
+door_Leaf_Face_Finish = sheet.col_values(14)
+door_Frame_Face_Finish = sheet.col_values(18)
+door_SACS = sheet.col_values(25)
+
+door_function_dictionary = {z[0]:list(z[1:]) for z in zip(function_param_to_read, door_Leaf_Number, door_equal_leaves, door_Leaf_Width, door_Leaf_Height, door_Undercut, door_host_fire_rating, door_fire_rating, door_acoustics_rating, door_Leaf_Material, door_Frame_Material, door_Leaf_Face_Finish, door_Frame_Face_Finish, door_SACS)}
+print(door_function_dictionary)
+
+####################################################################################################################
+# Function to acquire all elements of category & get parameter value by name 
+
+def all_elements_of_category(category):
+	return FilteredElementCollector(doc).OfCategory(category).WhereElementIsNotElementType().ToElements()
+
+def get_parameter_value_by_name(element, parameterName):
+	return element.LookupParameter(parameterName).AsValueString()
+
+
+# Function for acquiring index of item in list
+
+def indices(the_list, val):
+    # """Always returns a list containing the indices of val in the_list"""
+    retval = []
+    last = 0
+    while val in the_list[last:]:
+             i = the_list[last:].index(val) 
+             retval.append(last + i)
+             last += i + 1   
+    return retval
+
+####################################################################################################################
+# Master Door Information
+
+doors = all_elements_of_category(BuiltInCategory.OST_Doors)
+# print(doors)
+door_comments = [d.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).AsString() for d in doors]
+# print(door_comments)
+indices_for_non_glazed_doors = [i for i, x in enumerate(door_comments) if x!= "GLAZED PANEL"]
+
+####################################################################################################################
+doors = [doors[i] for i in indices_for_non_glazed_doors]
+# print(doors)
+
+door_numbers = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors]
+# print(door_numbers)
+
+# Getting Room Numbers in Doors 
+door_room_numbers = []
+for d in doors:
+    for param in d.Parameters:
+        if param.IsShared and param.Definition.Name == 'Room_Number':
+		    paramValue = d.get_Parameter(param.GUID)
+		    door_room_numbers.append(paramValue.AsString())
+# print(door_room_numbers)
+    
+# Getting Room Names in Doors 
+door_room_names = []
+for d in doors:
+    for param in d.Parameters:
+        if param.IsShared and param.Definition.Name == 'Room_Name':
+			paramValue = d.get_Parameter(param.GUID)
+			door_room_names.append(paramValue.AsString())
+# print(door_room_names)
+
+####################################################################################################################
+
+# Phase dependent Door properties
+
+def troom_froom_name_for_doors(doors_to_acquire = doors):
+    phases = doc.Phases
+    phase = phases[phases.Size - 1]
+    troom = []
+    froom = []
+
+    for d in doors_to_acquire:
+        temp = []
+        try:
+            temp = d.FromRoom[phase]
+            froom.append(temp)
+        except:
+            temp = 'fail'
+            froom.append(temp)
+        temp1 = []
+        try:
+            temp1 = d.ToRoom[phase]
+            troom.append(temp1)
+        except:
+            temp1 = 'fail'
+            troom.append(temp1)
+
+    filtered_from_rooms_index = [i for i, x in enumerate(froom) if x != None]
+    # print(filtered_from_rooms_index)
+    filtered_from_rooms = [froom[i] for i in filtered_from_rooms_index]
+    # print(filtered_from_rooms)
+    FromRoomName = [[r.get_Parameter(BuiltInParameter.ROOM_NAME).AsString() for r in filtered_from_rooms]]
+    # print(FromRoomName)
+    iter_flat_FromRoomName_list =  itertools.chain.from_iterable
+    flat_FromRoomName_list = list(iter_flat_FromRoomName_list(FromRoomName))
+    # print(flat_FromRoomName_list)
+    froom_list_length = (len(froom))
+    from_room_name_list = ["None"] * froom_list_length
+    # print(from_room_name_list)
+    # print(len(from_room_name_list))
+    for (index, replacements) in zip(filtered_from_rooms_index,flat_FromRoomName_list):
+        from_room_name_list[index] = replacements
+    # print(from_room_name_list)
+
+
+    filtered_to_rooms_index = [i for i, x in enumerate(troom) if x != None]
+    filtered_to_rooms = [troom[i] for i in filtered_to_rooms_index]
+    # print(filtered_to_rooms)
+    ToRoomName = [[r.get_Parameter(BuiltInParameter.ROOM_NAME).AsString() for r in filtered_to_rooms]]
+    # print(ToRoomName)
+    iter_flat_ToRoomName_list =  itertools.chain.from_iterable
+    flat_ToRoomName_list = list(iter_flat_ToRoomName_list(ToRoomName))
+    # print(flat_ToRoomName_list)
+    troom_list_length = (len(troom))
+    to_room_name_list = ["None"] * troom_list_length
+    # print(to_room_name_list)
+    # print(len(to_room_name_list))
+    for (index, replacements) in zip(filtered_to_rooms_index,flat_ToRoomName_list):
+        to_room_name_list[index] = replacements
+    # print(to_room_name_list)
+    return(to_room_name_list, from_room_name_list)
+
+####################################################################################################################
+# Getting To Room & From Room Door Info
+door_to_from_name_list = troom_froom_name_for_doors(doors)
+    
+door_to_room_name_list = door_to_from_name_list[0]
+door_from_room_name_list = door_to_from_name_list[1]
+# print(door_to_from_name_list)
+
+####################################################################################################################
+# Function for checking Family Type Door Parameters(AsInteger, AsDouble, AsString)
+
+def all_elements_with_type_parameter_AsInteger(sample_doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in sample_doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsInteger()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+
+def all_elements_with_type_parameter_AsDouble(sample_doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in sample_doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsDouble()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+
+def all_elements_with_type_parameter_AsString(sample_doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in sample_doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsString()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+
+####################################################################################################################
+
+# Getting failed elements (Doors & Door Numbers)
+def doors_with_family_param_failure(door_family_test,sample_doors, sample_door_numbers):
+    index_of_doors_with_family_param_failure = [i for i, x in enumerate(door_family_test) if x == 'fail']
+    doors_with_family_test_issues = [sample_doors[i] for i in index_of_doors_with_family_param_failure]
+    door_numbers_with_family_test_issues = [sample_door_numbers[i] for i in index_of_doors_with_family_param_failure]        
+    return (doors_with_family_test_issues, door_numbers_with_family_test_issues)
+ 
+# Getting passed elements (Doors & Door Numbers)
+def doors_with_family_param_pass(door_family_test,sample_doors, sample_door_numbers):
+    index_of_doors_with_family_param_pass = [i for i, x in enumerate(door_family_test) if x != 'fail']
+    doors_with_family_test_pass = [sample_doors[i] for i in index_of_doors_with_family_param_pass]
+    door_numbers_with_family_test_pass = [sample_door_numbers[i] for i in index_of_doors_with_family_param_pass]
+    return (doors_with_family_test_pass, door_numbers_with_family_test_pass)
+
+####################################################################################################################
+
+# Function for unit conversion
+def unit_conversion(revit_value_in_feet):
+    resultant_value_from_revit = [float(x) for x in revit_value_in_feet]
+    resultant_value_unit_conversion = [format_length(x) for x in resultant_value_from_revit]
+    resultant_value_converted_to_mm = [int(x) for x in resultant_value_unit_conversion]
+    return(resultant_value_converted_to_mm)
+
+####################################################################################################################
+# Extract Shared Parameter values, returns index of valid and None values
+
+def elem_param_values_test(elems, parameter_name):
+    elem_param_values = []
+    for e in elems:
+        for param in e.Parameters:
+            if param.IsShared and param.Definition.Name == parameter_name:
+			    paramValue = e.get_Parameter(param.GUID)
+			    elem_param_values.append(paramValue.AsString())
+    
+    elem_param_None_index = [i for i, x in enumerate(elem_param_values) if x == None]
+    elem_param_valid_index = [ i for i, x in enumerate(elem_param_values) if x != None]
+    return (elem_param_values, elem_param_valid_index, elem_param_None_index)
+
+####################################################################################################################
+
+######### IMPORTANT ################## IMPORTANT ###################### IMPORTANT ##################################
+# Prior to running any scripts, please ensure Doors to have functions using below
+ 
+door_function_values_with_index = elem_param_values_test(doors, "Room_Function")
+# print(filtered_door_function_values)
+door_function_values = door_function_values_with_index[0]
+index_for_doors_with_valid_functions_assigned = door_function_values_with_index[1]
+index_for_doors_with_no_functions_assigned = door_function_values_with_index[2]
+
+filtered_door_function_values = [door_function_values[i] for i in index_for_doors_with_valid_functions_assigned]
+doors_with_valid_functions = [doors[i] for i in index_for_doors_with_valid_functions_assigned]
+door_numbers_with_valid_functions = [door_numbers[i] for i in index_for_doors_with_valid_functions_assigned]
+door_room_numbers_with_valid_functions = [door_room_numbers[i] for i in index_for_doors_with_valid_functions_assigned]
+door_room_names_with_valid_functions = [door_room_names[i] for i in index_for_doors_with_valid_functions_assigned]
+
+####################################################################################################################
+
+test_for_doors_with_leaves = all_elements_with_type_parameter_AsInteger(doors_with_valid_functions, 'Leaf_Number')
+print(test_for_doors_with_leaves)
+test_for_doors_with_leaves = [float(x) for x in test_for_doors_with_leaves]
+
+
+####################################################################################################################
+
+#All elements of category- UserInput
+
+from rpw.ui.forms import SelectFromList
+from rpw.utils.coerce import to_category 
+
+userInputcategory = SelectFromList('Select Parameter to Check', ['01.Door Number against Room Number', '02.Multiple Doors in Single Room', '03.Function', '04.Leaf Number', '05.Leaf Width', '06.Leaf Height', '07.Fire Rating of Doors against Walls', '08.Acoustic Rating of Doors against Walls','09.Leaf Material', '10.Frame Material', '11.Undercut', '12.Fire Rated/Acoustically Treated Door with Grill' ])
+userInputcategory = str(userInputcategory)
+
+####################################################################################################################
+
+if userInputcategory == '01.Door Number against Room Number':
+
+    # Creating list of alphabets to verify
+    test_list = []
+    alpha = 'a'
+    for i in range(0,26):
+        test_list.append(alpha)
+        alpha = chr(ord(alpha) + 1)
+    
+    # Getting door numbers with last character as alphabet
+    last_alpha = [dnm[-1] for dnm in door_numbers]
+    # print(last_alpha)    
+    
+    # Getting index of Doors with alphabets
+    door_index_with_alpha = []
+    i = 0
+    while (i < len(last_alpha)):
+        if (test_list.count(last_alpha[i]) > 0):
+            door_index_with_alpha.append(i)
+        i += 1
+    # print(door_index_with_alpha)
+    
+    # Get all door num with alphabets
+    door_num_with_alpha = [door_numbers[i] for i in door_index_with_alpha]
+    
+    # Removing last character from every string
+    door_num_alpha_remove = [a[:-1] for a in door_num_with_alpha]
+    # print(door_num_alpha_remove)
+    
+    # Replacing door numbers with removed alphabets
+    door_num_dict = dict(zip(door_index_with_alpha, door_num_alpha_remove))
+    door_num_without_alpha_list = [door_num_dict.get(i,j) for i,j in enumerate(door_numbers)]
+    # print(door_num_without_alpha_list)
+    
+    # Checking Door Numbers against Room Numbers
+    if door_num_without_alpha_list == door_room_numbers:
+       print("All Door numbers match the Room Numbers")
+    
+    else:
+        print("Door numbers do not match the Room Numbers.\n Please find list below to check in Revit Model-")
+    
+    # Boolean comparision of list of Door numbers against Room numbers
+    bool_list_compare = (list(i[0] == i[1] for i in zip(door_room_numbers, door_num_without_alpha_list)))   
+    # print(bool_list_compare)
+    
+    # Index of mismatching Door numbers
+    index_of_failure_door_num = [i for i, x in enumerate(bool_list_compare) if not x]
+    # print(index_of_failure_door_num)
+    
+    
+       
+    # List of mismatching doors for user
+    door_num_with_mismatch_room_num = [door_numbers[i] for i in index_of_failure_door_num]
+    door_num_with_mismatch_room_num = ['Door Number: ' + item + ', ' for item in door_num_with_mismatch_room_num]
+    # print(door_num_with_mismatch_room_num)
+    
+    
+    # List of mismatching Door Room Number for user
+    room_num_with_mismatch_door_num = [door_room_numbers[i] for i in index_of_failure_door_num]
+    room_num_with_mismatch_door_num = ['Room Number: ' + item + ', ' for item in room_num_with_mismatch_door_num]
+    # print(room_num_with_mismatch_door_num)
+
+    # List of mismatching Door Room Names for user
+    room_name_with_mismatch_door_num = [door_room_names[i] for i in index_of_failure_door_num]
+    room_name_with_mismatch_door_num = ['Room Name: ' + item + ', ' for item in room_name_with_mismatch_door_num]
+    # print(room_name_with_mismatch_door_num)
+    
+    # List of mismatching Door To Room Name for user
+    to_room_name_with_mismatch_door_num = [door_to_room_name_list[i] for i in index_of_failure_door_num]
+    to_room_name_with_mismatch_door_num = ['To Room: ' + item + ', ' for item in to_room_name_with_mismatch_door_num]
+    # print(to_room_name_with_mismatch_door_num)
+    
+    from_room_name_with_mismatch_door_num = [door_from_room_name_list[i] for i in index_of_failure_door_num]
+    from_room_name_with_mismatch_door_num = ['From Room: ' + item + '.' for item in from_room_name_with_mismatch_door_num]
+    # print(from_room_name_with_mismatch_door_num)
+        
+    door_num_issues = [i + j + k + l + m for i, j, k, l, m in zip(door_num_with_mismatch_room_num, room_num_with_mismatch_door_num, room_name_with_mismatch_door_num, to_room_name_with_mismatch_door_num, from_room_name_with_mismatch_door_num )]
+    for dnm in door_num_issues:
+        print(dnm)
+     
+        
+####################################################################################################################
+
+elif userInputcategory == '02.Multiple Doors in Single Room':
+
+
+    # Creating list of alphabets to verify
+    test_list = []
+    alpha = 'a'
+    for i in range(0,26):
+        test_list.append(alpha)
+        alpha = chr(ord(alpha) + 1)
+    
+    # Getting door numbers with last character as alphabet
+    last_alpha = [dnm[-1] for dnm in door_numbers]
+    # print(last_alpha)    
+    
+    # Getting index of Doors with alphabets
+    door_index_with_alpha = []
+    i = 0
+    while (i < len(last_alpha)):
+        if (test_list.count(last_alpha[i]) > 0):
+            door_index_with_alpha.append(i)
+        i += 1
+    # print(door_index_with_alpha)  
+
+    # Get all door num with alphabets
+    door_num_with_alpha = [door_numbers[i] for i in door_index_with_alpha]
+    
+    # Removing last character from every string
+    door_num_alpha_remove = [a[:-1] for a in door_num_with_alpha]
+    # print(door_num_alpha_remove)
+       
+    # Replacing door numbers with removed alphabets
+    door_num_dict = dict(zip(door_index_with_alpha, door_num_alpha_remove))
+    door_num_without_alpha_list = [door_num_dict.get(i,j) for i,j in enumerate(door_numbers)]
+    # print(door_num_without_alpha_list)
+    
+    # Creating Self Door Number Dictionary with index number
+    door_num_dict = {}
+    index = 0
+    for item in door_num_without_alpha_list:
+        if item in door_num_dict:
+            door_num_dict[item] += [index]
+            index += 1
+        else:
+            door_num_dict[item] = [index]
+            index += 1
+    # print(door_num_dict)
+    
+    # Creating Door number dicitionary to count occurences
+    dict_door_num_with_occurences = {k:v for (k,v) in door_num_dict.items() if (len(v)>1)}
+    door_num_with_occurences = list(dict_door_num_with_occurences.keys())
+    # print(door_num_with_occurences)
+    door_num_occurences = list(dict_door_num_with_occurences.values())
+    # print(door_num_occurences)
+    # print(dict_door_num_with_occurences)
+    
+    # Length of nested lists of occurences
+    length_of_nested_door_occurences = [len(x) for x in door_num_occurences]
+    # print(length_of_nested_door_occurences)
+    
+    # Flattened list of occurences index
+    door_num_occurences_unnested = [item for sublist in door_num_occurences for item in sublist]
+    # print(door_num_occurences_unnested)
+
+    #  Getting item at index from Door Number List
+    door_num_from_main_list = [door_numbers[i] for i in door_num_occurences_unnested]
+    # print(door_num_from_main_list)
+    
+    # Nesting Door Number Values for checking
+    door_num_from_main_list_iter = iter(door_num_from_main_list)
+    door_num_nested = [list(islice(door_num_from_main_list_iter, elem)) for elem in length_of_nested_door_occurences]
+    # print(door_num_nested)
+    
+    # Acquiring last characted of nested item in list
+    last_alpha_nested = []
+    for list in door_num_nested:
+        temp = []
+        temp = [element[-1] for element in list]
+        last_alpha_nested.append(temp)
+    # print(last_alpha_nested)
+    
+    # Sorting last characted of nested item in list(a,b,c..)   
+    test_for_inconsistent_door_numbers = []
+    for list in last_alpha_nested:
+        temp = []
+        temp = sorted(list)
+        test_for_inconsistent_door_numbers.append(temp)
+    # print(test_for_inconsistent_door_numbers)
+    
+    # Combining list of characters to string(abc,def,ghi,....)
+    combine_chars_to_string = []
+    for list in test_for_inconsistent_door_numbers:
+        def convert(s):
+            str1 = ""
+            return(str1.join(s))
+        temp = []
+        temp = convert(list)
+        combine_chars_to_string.append(temp)
+    # print(combine_chars_to_string)
+    
+    # Function to check continuity of string combined in list
+    def check_continuity_of_string(s):
+        l = len(s)
+        s = ''.join(sorted(s))
+        for i in range(1,l):
+            if ord(s[i]) -ord(s[i-1]) != 1:
+                return False
+        return True
+    
+    string_continuity_bool = []
+    for str in combine_chars_to_string:
+        if __name__ == "__main__":
+            temp = []
+            if check_continuity_of_string(str):
+                temp = True
+            else:
+                temp = False
+            string_continuity_bool.append(temp)
+    # print(string_continuity_bool)
+    
+    # Index of Multiple Doors in Rooms with issues
+    index_of_failure_door_room_num = [i for i, x in enumerate(string_continuity_bool) if not x]
+    # print(index_of_failure_door_roon_num)
+    
+    # List of mismatching doors for user
+    room_with_multiple_doors_issues = [door_num_with_occurences[i] for i in index_of_failure_door_room_num]
+    
+
+    len_of_multi_door_issues_list = len(room_with_multiple_doors_issues)
+    if (len_of_multi_door_issues_list > 0):
+        print("Door number sequencing needs to be checked.\n Please find list of Room numbers assigned to doors below to check in Revit Model-")
+    else:
+        print("Door number sequencing has no issues")
+    print(room_with_multiple_doors_issues)   
+    
+
+####################################################################################################################
+
+elif userInputcategory == '03.Function':
+    doors_with_no_functions_assigned = [doors[i] for i in index_for_doors_with_no_functions_assigned]
+    
+    door_nums_with_no_functions_assigned = [door_numbers[i] for i in index_for_doors_with_no_functions_assigned]
+    door_nums_with_no_functions_assigned = ['Door Number: ' + item + ', ' for item in door_nums_with_no_functions_assigned]
+    
+    door_room_numbers_with_no_function_assigned = [door_room_numbers[i] for i in index_for_doors_with_no_functions_assigned]
+    door_room_numbers_with_no_function_assigned = ['Room_Numbers: ' + item + ', ' for item in door_room_numbers_with_no_function_assigned]
+    
+    door_room_names_with_no_function_assigned = [door_room_names[i] for i in index_for_doors_with_no_functions_assigned]
+    door_room_names_with_no_function_assigned = ['Room_Name: ' + item + ', ' for item in door_room_names_with_no_function_assigned]
+    
+    door_to_room_names_with_no_function_assigned = [door_to_room_name_list[i] for i in index_for_doors_with_no_functions_assigned]
+    door_to_room_names_with_no_function_assigned  = ['To Room: ' + item + ', ' for item in door_to_room_names_with_no_function_assigned]
+
+    doors_from_room_names_with_no_function_assigned = [door_from_room_name_list[i] for i in index_for_doors_with_no_functions_assigned]
+    doors_from_room_names_with_no_function_assigned = ['From Room: ' + item + '.' for item in doors_from_room_names_with_no_function_assigned]
+
+
+    door_function_issues = [i + j + k + l + m for i, j, k, l, m in zip(door_nums_with_no_functions_assigned, door_room_numbers_with_no_function_assigned, door_room_names_with_no_function_assigned, door_to_room_names_with_no_function_assigned, doors_from_room_names_with_no_function_assigned)]
+    for dfm in door_function_issues:
+        print(dfm)    
+
+####################################################################################################################
+
+elif userInputcategory == '04.Leaf Number':
+    
+    filtered_doors_with_leaf_number_param_pass = doors_with_family_param_pass(test_for_doors_with_leaves, doors_with_valid_functions,door_numbers_with_valid_functions)
+    # print(filter_doors_with_leaf_number_param_pass)
+    filtered_doors_leaf_test_pass = filtered_doors_with_leaf_number_param_pass[0]
+    # print(filtered_doors_leaf_test_pass)
+    filtered_door_nums_leaf_test_pass = filtered_doors_with_leaf_number_param_pass[1]
+    print(filtered_door_nums_leaf_test_pass)
+    
+
+    filter_doors_with_leaf_number_param_fail = doors_with_family_param_failure(test_for_doors_with_leaves, doors_with_valid_functions,door_numbers_with_valid_functions)
+    # print(filter_doors_with_leaf_number_param_pass)
+    filtered_doors_leaf_test_fail = filter_doors_with_leaf_number_param_fail[0]
+    # print(filtered_doors_leaf_test_fail)
+    filtered_door_nums_leaf_test_fail = filter_doors_with_leaf_number_param_fail[1]
+    print(filtered_door_nums_leaf_test_fail)
+
+
+    values_from_dict = [door_function_dictionary[x][0] for x in filtered_door_function_values]    
+    print(values_from_dict)
+    
+
+####################################################################################################################
+
+elif userInputcategory == '05.Leaf Width':
+    test_for_door_leaf_width = all_elements_with_type_parameter_AsInteger(doors_with_valid_functions, 'Leaf_Width')
+    print(test_for_door_leaf_width)
+
+####################################################################################################################
+
+elif userInputcategory == '06.Leaf Height':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '07.Fire Rating of Doors against Walls':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '08.Acoustic Rating of Doors against Walls':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '09.Leaf Material':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '10.Frame Material':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '11.Undercut':
+    pass
+
+####################################################################################################################
+
+elif userInputcategory == '12.Fire Rated/Acoustically Treated Door with Grill':
+    pass
+
+####################################################################################################################
+
+else:
+    pass
+
+####################################################################################################################
