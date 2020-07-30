@@ -1,0 +1,621 @@
+"""Fire Code Compatibility"""
+
+__title__ = "Fire Code\nCompatibility"
+__author__= "J K Roshan\nKerketta"
+
+from pyrevit.coreutils import envvars
+from decimal import *
+from pyrevit import forms
+from pyrevit import script
+from pyrevit import coreutils
+from itertools import chain
+from itertools import islice
+
+####################################################################################################################
+
+import Autodesk.Revit.DB as DB
+from  Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Transaction, TransactionGroup, Workset, SpatialElement
+from Autodesk.Revit.DB import FilteredWorksetCollector, WorksetKind, Element
+
+doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
+
+####################################################################################################################
+
+from pyrevit import HOST_APP
+from pyrevit import revit, DB
+import math
+
+####################################################################################################################
+
+def format_length(length_value, doc = None):
+    doc = doc or HOST_APP.doc
+    return DB.UnitFormatUtils.Format(units = doc.GetUnits(), unitType = DB.UnitType.UT_Length, value = length_value, maxAccuracy = False, forEditing =False)
+
+####################################################################################################################
+# Function to acquire all elements of category & get parameter value by name 
+
+def all_elements_of_category(category):
+	return FilteredElementCollector(doc).OfCategory(category).WhereElementIsNotElementType().ToElements()
+
+def get_parameter_value_by_name(element, parameterName):
+	return element.LookupParameter(parameterName).AsValueString()
+
+doors = all_elements_of_category(BuiltInCategory.OST_Doors)
+# print(doors)
+door_comments = [d.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).AsString() for d in doors]
+# print(door_comments)
+
+exclusions = ["ROLLING SHUTTER", "ACCESS PANEL", "CLOSET DOOR", "Glass door" , "Curtain wall door"]
+
+indices_for_non_glazed_doors = [i for i, x in enumerate(door_comments) if x not in exclusions]
+# print(indices_for_non_glazed_doors)
+
+
+
+# indices_for_non_glazed_doors = [i for i, x in enumerate(door_comments) if x!= "GLAZED PANEL"]
+doors = [doors[i] for i in indices_for_non_glazed_doors]
+door_numbers = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors]
+# print(doors)
+####################################################################################################################
+# Function for checking Family Type Door Parameters(AsInteger, AsDouble, AsString)
+
+def all_elements_with_type_parameter_AsInteger(doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsInteger()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+
+def all_elements_with_type_parameter_AsDouble(doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsDouble()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+
+def all_elements_with_type_parameter_AsString(doors, door_family_type_parameter):
+    door_family_test = []
+    door_family_param = []
+    
+    for d in doors:
+        door_type = d.Symbol
+        door_family_param = door_type.LookupParameter(door_family_type_parameter)
+        temp = []
+        if door_family_param:
+            temp = door_family_param.AsString()
+            door_family_test.append(temp)
+        else:
+            temp = 'fail'
+            door_family_test.append(temp)
+    return door_family_test
+####################################################################################################################
+
+# Getting failed elements (Doors & Door Numbers)
+def doors_with_family_param_failure(door_family_test,doors = doors, door_numbers = door_numbers):
+    index_of_doors_with_family_param_failure = [i for i, x in enumerate(door_family_test) if x == 'fail']
+    doors_with_family_test_issues = [doors[i] for i in index_of_doors_with_family_param_failure]
+    door_numbers_with_family_test_issues = [door_numbers[i] for i in index_of_doors_with_family_param_failure]        
+    return (doors_with_family_test_issues, door_numbers_with_family_test_issues)
+ 
+# Getting passed elements (Doors & Door Numbers)
+def doors_with_family_param_pass(door_family_test,doors = doors, door_numbers = door_numbers):
+    index_of_doors_with_family_param_pass = [i for i, x in enumerate(door_family_test) if x != 'fail']
+    doors_with_family_test_pass = [doors[i] for i in index_of_doors_with_family_param_pass]
+    door_numbers_with_family_test_pass = [door_numbers[i] for i in index_of_doors_with_family_param_pass]
+    return (doors_with_family_test_pass, door_numbers_with_family_test_pass)
+
+test_for_doors_with_leaves = all_elements_with_type_parameter_AsInteger(doors, 'Leaf_Number')
+# print(test_for_doors_with_leaves)
+filter_doors_with_leaf_number_param_pass = doors_with_family_param_pass(test_for_doors_with_leaves)
+# print(filter_doors_with_leaf_number_param_pass)
+filtered_doors = filter_doors_with_leaf_number_param_pass[0]
+# print(filtered_doors)
+filtered_door_nums = filter_doors_with_leaf_number_param_pass[1]
+# print(filtered_door_nums)
+
+# Single Doors
+index_of_doors_with_single_leaf = [ i for i, x in enumerate(test_for_doors_with_leaves) if x == 1]
+doors_with_single_leaf = [doors[i] for i in index_of_doors_with_single_leaf]
+door_numbers_for_doors_with_single_leaf = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf]
+    
+# Double Doors(Unequal & Equal)
+index_of_doors_with_double_leaves= [ i for i, x in enumerate(test_for_doors_with_leaves) if x == 2]
+doors_with_double_leaves = [doors[i] for i in index_of_doors_with_double_leaves]
+# print(doors_with_double_leaves)
+door_numbers_for_doors_with_double_leaves = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaves]
+# print(door_numbers_for_doors_with_double_leaves)
+
+# Filtering doors with Equal & Unequal Leaves
+test_for_double_leaf_doors = all_elements_with_type_parameter_AsDouble(doors_with_double_leaves,'Side Panel Width')
+# print(test_for_double_leaf_doors) 
+
+# Doors with Unequal Leaves
+filter_doors_with_unequal_leaves_pass = doors_with_family_param_pass(test_for_double_leaf_doors, doors_with_double_leaves, door_numbers_for_doors_with_double_leaves)
+filtered_unequal_leaf_doors = filter_doors_with_unequal_leaves_pass[0]
+# print(filtered_unequal_leaf_doors)
+filtered_unequal_leaf_door_nums = filter_doors_with_unequal_leaves_pass[1]
+# print(filtered_unequal_leaf_door_nums)
+
+# Doors with Equal Leaves
+filter_doors_with_unequal_leaves_fail = doors_with_family_param_failure(test_for_double_leaf_doors, doors_with_double_leaves, door_numbers_for_doors_with_double_leaves)
+filtered_equal_leaf_doors = filter_doors_with_unequal_leaves_fail[0]
+# print(filtered_equal_leaf_doors)
+filtered_equal_leaf_door_nums = filter_doors_with_unequal_leaves_fail[1]
+# print(filtered_equal_leaf_door_nums)
+
+# Function for unit conversion
+def unit_conversion(revit_value_in_feet):
+    resultant_value_from_revit = [float(x) for x in revit_value_in_feet]
+    resultant_value_unit_conversion = [format_length(x) for x in resultant_value_from_revit]
+    resultant_value_converted_to_mm = [int(x) for x in resultant_value_unit_conversion]
+    return(resultant_value_converted_to_mm)
+
+#####################################################################################################################
+
+from rpw.ui.forms import SelectFromList
+from rpw.utils.coerce import to_category 
+
+userInputcategory = SelectFromList('Select Fire Standard for Door Review', ['00.NFPA','01.French Codes', '02.IBC', '03.BS-EN', '04.MINIMUM CLEAR HEIGHT FOR DOORS', '05.MAXIMUM WIDTH OF DOORS'])
+userInputcategory = str(userInputcategory)
+
+#####################################################################################################################
+
+if userInputcategory == '00.NFPA':
+    print('NFPA STANDARDS -MINIMUM CLEAR WIDTH')
+    print('*'*50)
+    # Check Single Doors as per NFPA
+
+    single_leaf_doors_width = all_elements_with_type_parameter_AsDouble(doors_with_single_leaf, 'Leaf_Width')
+    single_leaf_doors_width_convert = unit_conversion(single_leaf_doors_width)
+    # print(single_leaf_doors_width_convert)
+
+    # Index of Single Doors with width less than 813 mm
+    index_of_failure_single_door_sizes = [i for i, x in enumerate(single_leaf_doors_width_convert) if x < 813]
+    # print(index_of_failure_single_door_sizes)
+    print("SINGLE LEAF DOORS")
+    if (len(index_of_failure_single_door_sizes) == 0):
+        print("Single Door sizes meet the NFPA requirements")
+    else:
+        doors_with_single_leaf_greater_than_permissible_sizes = [doors_with_single_leaf[i] for i in index_of_failure_single_door_sizes]
+        print("The Leaf Width of the following single doors needs to be updated to meet NFPA requirments(> 813 MM) :-")
+        door_numbers_for_doors_with_single_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_single_leaf_size_errors))
+    print('*'*120)  
+    
+    #####################################################################################################################
+    # Check Unequal Double Leaf Doors as per NFPA
+    # Side Panel Width
+    print("UNEQUAL DOUBLE LEAF DOORS")
+    unequal_leaf_doors_side_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Side Panel Width')
+    unequal_leaf_doors_side_panel_width_convert = unit_conversion(unequal_leaf_doors_side_panel_width)
+    # print(unequal_leaf_doors_side_panel_width_convert)
+    index_of_failure_unequal_leaf_side_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_side_panel_width_convert) if  450 < x < 600]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_side_panel_sizes) == 0):
+        print("Unequal Leaf Door- Smaller Panel sizes meet the NFPA requirements")
+    else:
+        unequal_leaf_side_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_side_panel_sizes]
+        print("The Leaf Width of the Smaller Panel for the following Unequal Leaf Doors needs to be updated to meet NFPA requirments( 450 - 600 MM) :-")
+        unequal_leaf_side_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_side_panel_sizes_fail]
+        print(sorted(unequal_leaf_side_panel_sizes_fail_door_nums))
+    
+    # Main Panel Width
+
+    unequal_leaf_doors_main_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Main Panel Width')
+    unequal_leaf_doors_main_panel_width_convert = unit_conversion(unequal_leaf_doors_main_panel_width)
+    # print(unequal_leaf_doors_main_panel_width_convert)
+    index_of_failure_unequal_leaf_main_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_main_panel_width_convert) if  x < 813]
+    # print(index_of_failure_unequal_leaf_main_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_main_panel_sizes) == 0):
+        print("Unequal Leaf Door- Larger Panel sizes meet the NFPA requirements")
+    else:
+        unequal_leaf_main_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_main_panel_sizes]
+        print("The Leaf Width of the Larger Panel for the following Unequal Leaf Doors needs to be updated to meet NFPA requirments(> 813 MM) :-")
+        unequal_leaf_main_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_main_panel_sizes_fail]
+        print(sorted(unequal_leaf_main_panel_sizes_fail_door_nums))
+    print('*'*120)
+    
+    ##################################################################################################################### 
+    # Check Equal Leaf Double Doors as per NFPA
+    print("EQUAL DOUBLE LEAF DOORS") 
+    double_leaf_doors_width = all_elements_with_type_parameter_AsDouble(filtered_equal_leaf_doors, 'Leaf_Width')
+    # print(double_leaf_doors_width)
+    double_leaf_doors_width_convert = unit_conversion(double_leaf_doors_width)
+    # print(double_leaf_doors_width_convert)
+
+    # Index of Double Doors with width less than 813 mm
+    index_of_failure_double_door_sizes = [i for i, x in enumerate(double_leaf_doors_width_convert) if (x/2 < 813)]
+    # print(index_of_failure_double_door_sizes)
+    
+    if (len(index_of_failure_double_door_sizes) == 0):
+        print("Double Door sizes meet the NFPA requirements")
+    else:
+        doors_with_double_leaf_greater_than_permissible_sizes = [filtered_equal_leaf_doors[i] for i in index_of_failure_double_door_sizes]
+        print("The Leaf Width of the following Double Doors needs to be updated to meet NFPA requirments(> 813 MM) :-")
+        door_numbers_for_doors_with_double_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_double_leaf_size_errors))
+    print('*'*120)    
+    
+#####################################################################################################################
+elif userInputcategory == '01.French Codes':
+    print('FRENCH CODE STANDARDS -MINIMUM CLEAR WIDTH')
+    print('*'*50)
+    # Check Single Doors as per French Code
+    print("SINGLE LEAF DOORS")
+    single_leaf_doors_width = all_elements_with_type_parameter_AsDouble(doors_with_single_leaf, 'Leaf_Width')
+    single_leaf_doors_width_convert = unit_conversion(single_leaf_doors_width)
+    # print(single_leaf_doors_width_convert)
+
+    # Index of Single Doors with width less than 900 mm
+    index_of_failure_single_door_sizes = [i for i, x in enumerate(single_leaf_doors_width_convert) if x < 900]
+    # print(index_of_failure_single_door_sizes)
+    
+    if (len(index_of_failure_single_door_sizes) == 0):
+        print("Single Door sizes meet the French Code requirements")
+    else:
+        doors_with_single_leaf_greater_than_permissible_sizes = [doors_with_single_leaf[i] for i in index_of_failure_single_door_sizes]
+        print("The Leaf Width of the following single doors needs to be updated to meet French Code requirments(> 900 MM) :-")
+        door_numbers_for_doors_with_single_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_single_leaf_size_errors))
+    print('*'*120)
+    #####################################################################################################################     
+    # Check Unequal Double Leaf Doors as per French Code
+    # Side Panel Width
+    print("UNEQUAL DOUBLE LEAF DOORS")
+        
+    unequal_leaf_doors_side_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Side Panel Width')
+    unequal_leaf_doors_side_panel_width_convert = unit_conversion(unequal_leaf_doors_side_panel_width)
+    # print(unequal_leaf_doors_side_panel_width_convert)
+    index_of_failure_unequal_leaf_side_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_side_panel_width_convert) if  450 < x < 600]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_side_panel_sizes) == 0):
+        print("Unequal Leaf Door- Smaller Panel sizes meet the French Code requirements")
+    else:
+        unequal_leaf_side_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_side_panel_sizes]
+        print("The Leaf Width of the Smaller Panel for the following Unequal Leaf Doors needs to be updated to meet French Code requirments( 450 - 600 MM) :-")
+        unequal_leaf_side_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_side_panel_sizes_fail]
+        print(sorted(unequal_leaf_side_panel_sizes_fail_door_nums))
+      
+    # Main Panel Width
+
+    unequal_leaf_doors_main_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Main Panel Width')
+    unequal_leaf_doors_main_panel_width_convert = unit_conversion(unequal_leaf_doors_main_panel_width)
+    # print(unequal_leaf_doors_main_panel_width_convert)
+    index_of_failure_unequal_leaf_main_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_main_panel_width_convert) if  x < 900]
+    # print(index_of_failure_unequal_leaf_main_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_main_panel_sizes) == 0):
+        print("Unequal Leaf Door- Larger Panel sizes meet the French Code requirements")
+    else:
+        unequal_leaf_main_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_main_panel_sizes]
+        print("The Leaf Width of the Larger Panel for the following Unequal Leaf Doors needs to be updated to meet French Code requirments(> 900 MM) :-")
+        unequal_leaf_main_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_main_panel_sizes_fail]
+        print(sorted(unequal_leaf_main_panel_sizes_fail_door_nums))
+    print('*'*120) 
+    
+    #####################################################################################################################  
+    # Check Equal Leaf Double Doors as per French Code
+    print("EQUAL DOUBLE LEAF DOORS")
+    double_leaf_doors_width = all_elements_with_type_parameter_AsDouble(filtered_equal_leaf_doors, 'Leaf_Width')
+    double_leaf_doors_width_convert = unit_conversion(double_leaf_doors_width)
+    # print(double_leaf_doors_width_convert)
+
+    # Index of Double Doors with width less than 900 mm
+    index_of_failure_double_door_sizes = [i for i, x in enumerate(double_leaf_doors_width_convert) if (x/2 < 900)]
+    # print(index_of_failure_double_door_sizes)
+    
+    if (len(index_of_failure_double_door_sizes) == 0):
+        print("Double Door sizes meet the French Code requirements")
+    else:
+        doors_with_double_leaf_greater_than_permissible_sizes = [filtered_equal_leaf_doors[i] for i in index_of_failure_double_door_sizes]
+        print("The Leaf Width of the following Double Doors needs to be updated to meet French Code requirments(> 900 MM) :-")
+        door_numbers_for_doors_with_double_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_double_leaf_size_errors))
+    print('*'*120)    
+    
+#####################################################################################################################   
+elif userInputcategory == '02.IBC':
+    print('IBC STANDARDS -MINIMUM CLEAR WIDTH')
+    print('*'*50)
+    # Check Single Doors as per IBC
+    print("SINGLE LEAF DOORS")
+    single_leaf_doors_width = all_elements_with_type_parameter_AsDouble(doors_with_single_leaf, 'Leaf_Width')
+    single_leaf_doors_width_convert = unit_conversion(single_leaf_doors_width)
+    # print(single_leaf_doors_width_convert)
+
+    # Index of Single Doors with width less than 813 mm
+    index_of_failure_single_door_sizes = [i for i, x in enumerate(single_leaf_doors_width_convert) if x < 813]
+    # print(index_of_failure_single_door_sizes)
+    
+    if (len(index_of_failure_single_door_sizes) == 0):
+        print("Single Door sizes meet the IBC requirements")
+    else:
+        doors_with_single_leaf_greater_than_permissible_sizes = [doors_with_single_leaf[i] for i in index_of_failure_single_door_sizes]
+        print("The Leaf Width of the following single doors needs to be updated to meet IBC requirments(> 813 MM) :-")
+        door_numbers_for_doors_with_single_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_single_leaf_size_errors))
+    print('*'*120) 
+
+    #####################################################################################################################   
+    # Check Unequal Double Leaf Doors as per IBC
+    # Side Panel Width
+    print("UNEQUAL DOUBLE LEAF DOORS")
+    unequal_leaf_doors_side_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Side Panel Width')
+    unequal_leaf_doors_side_panel_width_convert = unit_conversion(unequal_leaf_doors_side_panel_width)
+    # print(unequal_leaf_doors_side_panel_width_convert)
+    index_of_failure_unequal_leaf_side_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_side_panel_width_convert) if  450 < x < 600]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_side_panel_sizes) == 0):
+        print("Unequal Leaf Door- Smaller Panel sizes meet the IBC requirements")
+    else:
+        unequal_leaf_side_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_side_panel_sizes]
+        print("The Leaf Width of the Smaller Panel for the following Unequal Leaf Doors needs to be updated to meet IBC requirments( 450 - 600 MM) :-")
+        unequal_leaf_side_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_side_panel_sizes_fail]
+        print(sorted(unequal_leaf_side_panel_sizes_fail_door_nums))
+      
+    # Main Panel Width
+
+    unequal_leaf_doors_main_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Main Panel Width')
+    unequal_leaf_doors_main_panel_width_convert = unit_conversion(unequal_leaf_doors_main_panel_width)
+    # print(unequal_leaf_doors_main_panel_width_convert)
+    index_of_failure_unequal_leaf_main_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_main_panel_width_convert) if  x < 813]
+    # print(index_of_failure_unequal_leaf_main_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_main_panel_sizes) == 0):
+        print("Unequal Leaf Door- Larger Panel sizes meet the IBC requirements")
+    else:
+        unequal_leaf_main_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_main_panel_sizes]
+        print("The Leaf Width of the Larger Panel for the following Unequal Leaf Doors needs to be updated to meet IBC requirments(> 813 MM) :-")
+        unequal_leaf_main_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_main_panel_sizes_fail]
+        print(sorted(unequal_leaf_main_panel_sizes_fail_door_nums))
+    print('*'*120)
+    
+    #####################################################################################################################    
+    # Check Equal Leaf Double Doors as per IBC
+    print("EQUAL DOUBLE LEAF DOORS")
+    double_leaf_doors_width = all_elements_with_type_parameter_AsDouble(filtered_equal_leaf_doors, 'Leaf_Width')
+    double_leaf_doors_width_convert = unit_conversion(double_leaf_doors_width)
+    # print(double_leaf_doors_width_convert)
+
+    # Index of Double Doors with width less than 813 mm
+    index_of_failure_double_door_sizes = [i for i, x in enumerate(double_leaf_doors_width_convert) if (x/2 < 813)]
+    # print(index_of_failure_double_door_sizes)
+    
+    if (len(index_of_failure_double_door_sizes) == 0):
+        print("Double Door sizes meet the IBC requirements")
+    else:
+        doors_with_double_leaf_greater_than_permissible_sizes = [filtered_equal_leaf_doors[i] for i in index_of_failure_double_door_sizes]
+        print("The Leaf Width of the following Double Doors needs to be updated to meet IBC requirments(> 813 MM) :-")
+        door_numbers_for_doors_with_double_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_double_leaf_size_errors))
+    print('*'*120)    
+    
+#####################################################################################################################
+ 
+elif userInputcategory == '03.BS-EN':
+    print('BS-EN STANDARDS -MINIMUM CLEAR WIDTH')
+    print('*'*50)
+    # Check Single Doors as per BS-EN
+    print("SINGLE LEAF DOORS")
+    single_leaf_doors_width = all_elements_with_type_parameter_AsDouble(doors_with_single_leaf, 'Leaf_Width')
+    single_leaf_doors_width_convert = unit_conversion(single_leaf_doors_width)
+    # print(single_leaf_doors_width_convert)
+
+    # Index of Single Doors with width less than 850 mm
+    index_of_failure_single_door_sizes = [i for i, x in enumerate(single_leaf_doors_width_convert) if x < 850]
+    # print(index_of_failure_single_door_sizes)
+    
+    if (len(index_of_failure_single_door_sizes) == 0):
+        print("Single Door sizes meet the BS-EN requirements")
+    else:
+        doors_with_single_leaf_greater_than_permissible_sizes = [doors_with_single_leaf[i] for i in index_of_failure_single_door_sizes]
+        print("The Leaf Width of the following single doors needs to be updated to meet BS-EN requirments(> 850 MM) :-")
+        door_numbers_for_doors_with_single_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_single_leaf_size_errors))
+    print('*'*120)
+    
+    #####################################################################################################################  
+    # Check Unequal Double Leaf Doors as per BS-EN
+    # Side Panel Width
+    print("UNEQUAL DOUBLE LEAF DOORS")
+    unequal_leaf_doors_side_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Side Panel Width')
+    unequal_leaf_doors_side_panel_width_convert = unit_conversion(unequal_leaf_doors_side_panel_width)
+    # print(unequal_leaf_doors_side_panel_width_convert)
+    index_of_failure_unequal_leaf_side_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_side_panel_width_convert) if  450 < x < 600]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_side_panel_sizes) == 0):
+        print("Unequal Leaf Door- Smaller Panel sizes meet the BS-EN requirements")
+    else:
+        unequal_leaf_side_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_side_panel_sizes]
+        print("The Leaf Width of the Smaller Panel for the following Unequal Leaf Doors needs to be updated to meet BS-EN requirments( 450 - 600 MM) :-")
+        unequal_leaf_side_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_side_panel_sizes_fail]
+        print(sorted(unequal_leaf_side_panel_sizes_fail_door_nums))
+      
+    # Main Panel Width
+
+    unequal_leaf_doors_main_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Main Panel Width')
+    unequal_leaf_doors_main_panel_width_convert = unit_conversion(unequal_leaf_doors_main_panel_width)
+    # print(unequal_leaf_doors_main_panel_width_convert)
+    index_of_failure_unequal_leaf_main_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_main_panel_width_convert) if  x < 850]
+    # print(index_of_failure_unequal_leaf_main_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_main_panel_sizes) == 0):
+        print("Unequal Leaf Door- Larger Panel sizes meet the BS-EN requirements")
+    else:
+        unequal_leaf_main_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_main_panel_sizes]
+        print("The Leaf Width of the Larger Panel for the following Unequal Leaf Doors needs to be updated to meet BS-EN requirments(> 850 MM) :-")
+        unequal_leaf_main_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_main_panel_sizes_fail]
+        print(sorted(unequal_leaf_main_panel_sizes_fail_door_nums))
+    print('*'*120)
+    ##################################################################################################################### 
+    # Check Equal Leaf Double Doors as per BS-EN
+    print("EQUAL DOUBLE LEAF DOORS")
+    double_leaf_doors_width = all_elements_with_type_parameter_AsDouble(filtered_equal_leaf_doors, 'Leaf_Width')
+    double_leaf_doors_width_convert = unit_conversion(double_leaf_doors_width)
+    # print(double_leaf_doors_width_convert)
+
+    # Index of Double Doors with width less than 850 mm
+    index_of_failure_double_door_sizes = [i for i, x in enumerate(double_leaf_doors_width_convert) if (x/2 < 850)]
+    # print(index_of_failure_double_door_sizes)
+    
+    if (len(index_of_failure_double_door_sizes) == 0):
+        print("Double Door sizes meet the BS-EN requirements")
+    else:
+        doors_with_double_leaf_greater_than_permissible_sizes = [filtered_equal_leaf_doors[i] for i in index_of_failure_double_door_sizes]
+        print("The Leaf Width of the following Double Doors needs to be updated to meet BS-EN requirments(> 850 MM) :-")
+        door_numbers_for_doors_with_double_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_double_leaf_size_errors))
+    print('*'*120)   
+    
+
+#####################################################################################################################
+# Check Clear Height for Doors
+
+elif userInputcategory == '04.MINIMUM CLEAR HEIGHT FOR DOORS':
+    print("MINIMUM CLEAR HEIGHT FOR DOORS")
+    clear_height_for_doors = all_elements_with_type_parameter_AsDouble(doors, 'Leaf_Height')
+    # print(clear_height_for_doors)
+
+    # Doors with Leaf Height Parameter
+    filter_doors_with_clear_height_pass = doors_with_family_param_pass(clear_height_for_doors)
+    filtered_doors_with_clear_height = filter_doors_with_clear_height_pass[0]
+    # print(filtered_doors_with_clear_height)
+    filtered_door_nums_with_clear_height = filter_doors_with_clear_height_pass[1]
+    # print(filtered_door_nums_with_clear_height)
+
+    # Doors with no Leaf Height Parameter
+    filter_doors_with_clear_height_fail = doors_with_family_param_failure(clear_height_for_doors)
+    filtered_doors_with_no_leaf_height_parameter = filter_doors_with_clear_height_fail[0]
+    # print(filtered_doors_with_no_leaf_height_parameter)
+    filtered_door_nums_with_no_leaf_height_param = filter_doors_with_clear_height_fail[1]
+    # print('The following Doors do not have Leaf Height Parameter like other Doors:-')
+    # print(filtered_door_nums_with_no_leaf_height_param)
+    
+    final_clear_height_for_doors = all_elements_with_type_parameter_AsDouble(filtered_doors_with_clear_height, 'Leaf_Height')
+    clear_height_convert = unit_conversion(final_clear_height_for_doors)
+    # print(clear_height_convert)
+    index_of_failure_door_clear_height = [i for i, x in enumerate(clear_height_convert) if   x < 2050]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+    if (len(index_of_failure_door_clear_height) == 0):
+        print("Clear Height for Doors meet the minimum height standards")
+    else:
+        doors_with_height_less_than_the_permissible_sizes = [filtered_doors_with_clear_height[i] for i in index_of_failure_door_clear_height]
+        print('The Leaf Height of the following Doors needs to be updated minimum standards of 2050 MM :-')
+        door_numbers_for_doors_with_height_issues = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_height_less_than_the_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_height_issues))
+    print('*'*120) 
+    
+        
+#####################################################################################################################
+
+elif userInputcategory == '05.MAXIMUM WIDTH OF DOORS':
+    
+    print('MAXIMUM CLEAR WIDTH')
+    print('*'*50)
+    
+    # Check Single Doors 
+    
+    print("SINGLE LEAF DOORS")
+    single_leaf_doors_width = all_elements_with_type_parameter_AsDouble(doors_with_single_leaf, 'Leaf_Width')
+    single_leaf_doors_width_convert = unit_conversion(single_leaf_doors_width)
+    # print(single_leaf_doors_width_convert)
+
+    # Index of Single Doors with width less than 813 mm
+    index_of_failure_single_door_sizes = [i for i, x in enumerate(single_leaf_doors_width_convert) if x > 1200]
+    # print(index_of_failure_single_door_sizes)
+    
+    if (len(index_of_failure_single_door_sizes) == 0):
+        print("Single Door sizes meet the requirements")
+    else:
+        doors_with_single_leaf_greater_than_permissible_sizes = [doors_with_single_leaf[i] for i in index_of_failure_single_door_sizes]
+        print("The Leaf Width of the following single doors needs to be updated to be within maximum door size (< 1200 MM) :-")
+        door_numbers_for_doors_with_single_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_single_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_single_leaf_size_errors))
+    print('*'*120) 
+
+
+    #####################################################################################################################  
+    # Check Unequal Leaf Doors 
+    
+    # Side Panel Width
+    print("UNEQUAL DOUBLE LEAF DOORS")
+    unequal_leaf_doors_side_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Side Panel Width')
+    unequal_leaf_doors_side_panel_width_convert = unit_conversion(unequal_leaf_doors_side_panel_width)
+    # print(unequal_leaf_doors_side_panel_width_convert)
+    index_of_failure_unequal_leaf_side_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_side_panel_width_convert) if   x > 600]
+    # print(index_of_failure_unequal_leaf_side_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_side_panel_sizes) == 0):
+        print("Unequal Leaf Door- Smaller Panel sizes meet the requirements")
+    else:
+        unequal_leaf_side_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_side_panel_sizes]
+        print("The Leaf Width of the Smaller Panel for the following Unequal Leaf Doors needs to be updated to be within maximum Panel size(600 MM) :-")
+        unequal_leaf_side_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_side_panel_sizes_fail]
+        print(sorted(unequal_leaf_side_panel_sizes_fail_door_nums))
+      
+    # Main Panel Width
+
+    unequal_leaf_doors_main_panel_width = all_elements_with_type_parameter_AsDouble(filtered_unequal_leaf_doors, 'Main Panel Width')
+    unequal_leaf_doors_main_panel_width_convert = unit_conversion(unequal_leaf_doors_main_panel_width)
+    # print(unequal_leaf_doors_main_panel_width_convert)
+    index_of_failure_unequal_leaf_main_panel_sizes = [i for i, x in enumerate(unequal_leaf_doors_main_panel_width_convert) if  x > 1200]
+    # print(index_of_failure_unequal_leaf_main_panel_sizes)
+
+    if (len(index_of_failure_unequal_leaf_main_panel_sizes) == 0):
+        print("Unequal Leaf Door- Larger Panel sizes meet the requirements")
+    else:
+        unequal_leaf_main_panel_sizes_fail = [filtered_unequal_leaf_doors[i] for i in index_of_failure_unequal_leaf_main_panel_sizes]
+        print("The Leaf Width of the Larger Panel for the following Unequal Leaf Doors needs to be updated to be within maximum Panel size(< 1200 MM) :-")
+        unequal_leaf_main_panel_sizes_fail_door_nums = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in unequal_leaf_main_panel_sizes_fail]
+        print(sorted(unequal_leaf_main_panel_sizes_fail_door_nums))
+    print('*'*120)
+    
+    
+    #####################################################################################################################
+
+    # Check Equal Leaf Double Doors 
+    
+    print("EQUAL DOUBLE LEAF DOORS")
+    double_leaf_doors_width = all_elements_with_type_parameter_AsDouble(filtered_equal_leaf_doors, 'Leaf_Width')
+    double_leaf_doors_width_convert = unit_conversion(double_leaf_doors_width)
+    # print(double_leaf_doors_width_convert)
+
+    # Index of Double Doors with width greater than 2400
+    index_of_failure_double_door_sizes = [i for i, x in enumerate(double_leaf_doors_width_convert) if (x/2 > 1200)]
+    # print(index_of_failure_double_door_sizes)
+    
+    if (len(index_of_failure_double_door_sizes) == 0):
+        print("Double Door Panel Sizes meet the requirements")
+    else:
+        doors_with_double_leaf_greater_than_permissible_sizes = [filtered_equal_leaf_doors[i] for i in index_of_failure_double_door_sizes]
+        print("The Leaf Width of the following Double Doors needs to be  updated to be within maximum Panel size(< 1200 MM) :-")
+        door_numbers_for_doors_with_double_leaf_size_errors = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_double_leaf_greater_than_permissible_sizes]
+        print(sorted(door_numbers_for_doors_with_double_leaf_size_errors))
+    print('*'*120)   
+    
+
+#####################################################################################################################
