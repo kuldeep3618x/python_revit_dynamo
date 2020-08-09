@@ -3,12 +3,6 @@
 __title__ = "Occupancy\nCalculations"
 __author__= "J K Roshan\nKerketta"
 
-############################################################################################
-
-# from threading import Thread
-
-# import multiprocessing as mp
-
 ####################################################################################################################
 import itertools
 import operator
@@ -24,6 +18,7 @@ from pyrevit import revit, DB
 from itertools import chain
 from itertools import islice
 from pyrevit import HOST_APP
+
 ####################################################################################################################
 
 import Autodesk.Revit.DB as DB
@@ -64,11 +59,9 @@ activeV = doc.ActiveView
 import xlrd 
 from xlrd import open_workbook 
 
-
-#Select Excel File from Folder
+# Select Excel File from Folder
 
 logger = script.get_logger()
-# if__name__ == '__main__':
 source_file = forms.pick_file(file_ext='xlsx')
 
 # Give the location of Excel the file 
@@ -222,7 +215,7 @@ if len(room_names_with_no_occupancy_type) == 0:
     print('All Rooms have Occupancy Type Assigned')
 else:
     print('The following Rooms have no Occupancy Type assigned:')
-    # rooms_with_no_occupancy_type_issue = output_statement(rooms_numbers_with_no_occupancy_type,room_names_with_no_occupancy_type ) 
+    rooms_with_no_occupancy_type_issue = output_statement(rooms_numbers_with_no_occupancy_type,room_names_with_no_occupancy_type ) 
 print('*'*120)
 
 ######################################################################################################################
@@ -523,7 +516,7 @@ def output_analysis_for_door_widths(index_of_insufficient_door_width_with_oc_and
         total_egress_width_for_rooms_with_oc_filter_dcount_filter_insuff_width = [str(x) for x in total_egress_width_for_rooms_with_oc_filter_dcount_filter_insuff_width]
         total_egress_width_reqd_for_room_with_oc_filter_dcount_filter_insuff_width = [str(x) for x in total_egress_width_reqd_for_room_with_oc_filter_dcount_filter_insuff_width]
         
-        print('The following Rooms with Doors donot meet the egress width requirements as per code:')
+        print('The following Rooms with Doors donot meet the total egress width requirements as per code:')
         sample_rnums_with_egress_width_issues = ['Room Number: '+ item + ', ' for item in rnums_with_oc_filter_dcount_filter_insuff_width]
         sample_rnames_with_egress_width_issues = ['Room Names: ' + item + ', ' for item in rnames_with_oc_filter_dcount_filter_insuff_width]
         sample_egress_width_for_rooms_with_insuff_egress_issues = ['Total Egress width currently: ' + item + ', ' for item in total_egress_width_for_rooms_with_oc_filter_dcount_filter_insuff_width]
@@ -534,7 +527,7 @@ def output_analysis_for_door_widths(index_of_insufficient_door_width_with_oc_and
             print(issues)
 
     else:
-        print('All Doors in the respective Rooms meet the code requirement')
+        print('Total Egress Width in the respective Rooms meet the code requirement.')
   
 ####################################################################################################################  
 
@@ -550,139 +543,181 @@ def output_statement_for_rooms_of_each_level(sample_unique_room_level_names, sam
     sample_output_for_room_level_occupancy_sorted = [i + j + k for i,j,k in zip(sample_unique_room_level_names_output, sample_sum_of_occupancy_count_for_each_level_output, sample_egress_capacity_requirement_for_each_level_output)]
     for output in sample_output_for_room_level_occupancy_sorted:
         print(output)
-       
-####################################################################################################################
 
+#################################################################################################################### 
+
+def process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_code, code):
+   
+    occupant_count_total_as_per_code= occupancy_calculation_as_per_code[0]
+    occupant_level_name_as_per_code= occupancy_calculation_as_per_code[1]
+    occupant_count_for_each_level_as_per_code= occupancy_calculation_as_per_code[2]
+    egress_capacity_for_each_level_as_per_code= occupancy_calculation_as_per_code[3]
+    print("The total occupant count for the building, as per {} code is : {} persons.".format(code,occupant_count_total_as_per_code))
+    print('*'*120)
+    occupancy_calculation_per_level_as_per_code= output_statement_for_rooms_of_each_level(occupant_level_name_as_per_code,  occupant_count_for_each_level_as_per_code, egress_capacity_for_each_level_as_per_code)
+    print('*'*120)
+    
+    # Occupant count for Rooms and Rooms with occupant count as per code
+        
+    rooms_sublist_by_lvl_as_per_code= occupancy_calculation_as_per_code[4]
+    room_oc_count_sublist_by_lvl_as_per_code= occupancy_calculation_as_per_code[5]
+    
+    # Occupancy Analysis for Rooms with Occupancy Greater than 50 ppl
+    idx_oc_count_greater_50_ppl_code= filter_room_egress_capacity(room_oc_count_sublist_by_lvl_as_per_code, 'greater', 50)
+    
+    clean_oc_count_greater_50_code= clean_filter_list(idx_oc_count_greater_50_ppl_code, rooms_sublist_by_lvl_as_per_code, room_oc_count_sublist_by_lvl_as_per_code)
+    flat_rooms_with_oc_count_greater_50_code= clean_oc_count_greater_50_code[0]
+    filtered_rnames_as_oc_count_greater_50_code= clean_oc_count_greater_50_code[1]
+    filtered_rnums_as_oc_count_greater_50_code= clean_oc_count_greater_50_code[2]
+    filtered_room_oc_count_greater_50_code= clean_oc_count_greater_50_code[3]
+ 
+    filter_doors_as_per_oc_count_greater_50_code= lookup_doors_in_rooms_as_oc_count_filter(flat_rooms_with_oc_count_greater_50_code, filtered_rnames_as_oc_count_greater_50_code, filtered_rnums_as_oc_count_greater_50_code, filtered_room_oc_count_greater_50_code, door_room_nums, doors)
+    filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_greater_50_code= filter_doors_as_per_oc_count_greater_50_code[0]
+    rnums_with_doors_and_oc_as_count_greater_50_code= filter_doors_as_per_oc_count_greater_50_code[1]
+    rnames_with_doors_and_oc_as_count_greater_50_code= filter_doors_as_per_oc_count_greater_50_code[2]
+    rooms_with_doors_and_oc_as_count_greater_50_code= filter_doors_as_per_oc_count_greater_50_code[3]
+    room_oc_count_for_rooms_with_doors_and_count_greater_50_code= filter_doors_as_per_oc_count_greater_50_code[4]
+    
+    ######################################################################################################################################
+    # For occupant count greater than 50 and having more than one door
+    
+    idx_door_count_greater_1_on_dwidths_code= idx_filter_door_count_on_dwidths(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_greater_50_code, 'greater', 1)
+    
+    filtered_rooms_as_per_oc_greater_50_dcount_greater_1_code= room_info_filter_as_per_dcount_filter(idx_door_count_greater_1_on_dwidths_code, rnums_with_doors_and_oc_as_count_greater_50_code,rnames_with_doors_and_oc_as_count_greater_50_code, rooms_with_doors_and_oc_as_count_greater_50_code, room_oc_count_for_rooms_with_doors_and_count_greater_50_code)
+     
+    rnums_with_oc_greater_50_and_dcount_greater_1_code= filtered_rooms_as_per_oc_greater_50_dcount_greater_1_code[0]
+    rnames_with_oc_greater_50_and_dcount_greater_1_code= filtered_rooms_as_per_oc_greater_50_dcount_greater_1_code[1] 
+    rooms_with_oc_greater_50_and_dcount_greater_1_code= filtered_rooms_as_per_oc_greater_50_dcount_greater_1_code[2]
+    room_oc_count_greater_50_and_dcount_greater_1_code= filtered_rooms_as_per_oc_greater_50_dcount_greater_1_code[3] 
+    
+    filtered_door_widths_as_per_oc_and_dcount_greater_1_code= door_widths_for_doors_in_rooms_with_oc_filter_dcount_filter(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_greater_50_code, idx_door_count_greater_1_on_dwidths_code, room_oc_count_greater_50_and_dcount_greater_1_code)
+    total_egress_width_for_doors_in_rooms_with_oc_dcount_greater_1_code= filtered_door_widths_as_per_oc_and_dcount_greater_1_code[0]
+    total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_greater_1_code= filtered_door_widths_as_per_oc_and_dcount_greater_1_code[1]
+    idx_of_insufficent_door_width_with_oc_dcount_greater_1_code= filtered_door_widths_as_per_oc_and_dcount_greater_1_code[2]
+    print("Analysis of Rooms, as per {} code with Occupancy greater than 50 persons & have two or more doors.".format(code))
+    print('*'*30)
+    egress_width_analysis_code = output_analysis_for_door_widths(idx_of_insufficent_door_width_with_oc_dcount_greater_1_code, rnums_with_oc_greater_50_and_dcount_greater_1_code, rnames_with_oc_greater_50_and_dcount_greater_1_code, total_egress_width_for_doors_in_rooms_with_oc_dcount_greater_1_code, total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_greater_1_code) 
+    if len(idx_of_insufficent_door_width_with_oc_dcount_greater_1_code) != 0:
+        print('IMPORTANT- Please note that the addin does not take into account Doors from linked Revit files.\nPlease do take into account these doors, additionally in the mentioned Rooms.')
+    else:
+        pass
+    print('*'*120)
+    
+    # For occupant count greater than 50 and having less than two doors
+        
+    idx_door_count_lesser_2_on_dwidths_code= idx_filter_door_count_on_dwidths(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_greater_50_code, 'lesser', 2)
+    filtered_rooms_as_per_oc_greater_50_dcount_lesser_2_code= room_info_filter_as_per_dcount_filter(idx_door_count_lesser_2_on_dwidths_code, rnums_with_doors_and_oc_as_count_greater_50_code,rnames_with_doors_and_oc_as_count_greater_50_code, rooms_with_doors_and_oc_as_count_greater_50_code, room_oc_count_for_rooms_with_doors_and_count_greater_50_code)
+    
+    rnums_with_oc_greater_50_and_dcount_lesser_2_code= filtered_rooms_as_per_oc_greater_50_dcount_lesser_2_code[0]
+    rnames_with_oc_greater_50_and_dcount_lesser_2_code= filtered_rooms_as_per_oc_greater_50_dcount_lesser_2_code[1] 
+    rooms_with_oc_greater_50_and_dcount_lesser_2_code= filtered_rooms_as_per_oc_greater_50_dcount_lesser_2_code[2]
+    room_oc_count_greater_50_and_dcount_lesser_2_code= filtered_rooms_as_per_oc_greater_50_dcount_lesser_2_code[3] 
+    
+    filtered_door_widths_as_per_oc_and_dcount_lesser_2_code= door_widths_for_doors_in_rooms_with_oc_filter_dcount_filter(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_greater_50_code, idx_door_count_lesser_2_on_dwidths_code, room_oc_count_greater_50_and_dcount_lesser_2_code)
+    total_egress_width_for_doors_in_rooms_with_oc_dcount_lesser_2_code= filtered_door_widths_as_per_oc_and_dcount_lesser_2_code[0]
+    total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_lesser_2_code= filtered_door_widths_as_per_oc_and_dcount_lesser_2_code[1]
+    idx_of_insufficent_door_width_with_oc_dcount_lesser_2_code= filtered_door_widths_as_per_oc_and_dcount_lesser_2_code[2]
+    print("Analysis of Rooms, as per {} code with Occupancy greater than 50 persons & has one door only.".format(code))
+    print('*'*30)
+    egress_width_analysis_code= output_analysis_for_door_widths(idx_of_insufficent_door_width_with_oc_dcount_lesser_2_code, rnums_with_oc_greater_50_and_dcount_lesser_2_code, rnames_with_oc_greater_50_and_dcount_lesser_2_code, total_egress_width_for_doors_in_rooms_with_oc_dcount_lesser_2_code, total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_lesser_2_code) 
+    if len(idx_of_insufficent_door_width_with_oc_dcount_lesser_2_code) != 0:
+        print('A minimum of two doors, as per {} code, are required for Occupancy greater than 50 persons.'. format(code))
+    else:
+        pass
+    # print('*'*30)
+    if len(idx_of_insufficent_door_width_with_oc_dcount_lesser_2_code) != 0:
+        print('IMPORTANT- Please note that the addin does not take into account Doors from linked Revit files.\nPlease do take into account these doors, additionally in the mentioned Rooms.')
+    else:
+        pass
+    print('*'*120)
+    
+    ###########################################################################################################################################################
+    
+    # Occupancy Analysis for Rooms with Occupancy lesser than 50 ppl
+    
+    idx_oc_count_lesser_50_ppl_code= filter_room_egress_capacity(room_oc_count_sublist_by_lvl_as_per_code, 'lesser', 50)
+    
+    clean_oc_count_lesser_50_code= clean_filter_list(idx_oc_count_lesser_50_ppl_code, rooms_sublist_by_lvl_as_per_code, room_oc_count_sublist_by_lvl_as_per_code)
+    flat_rooms_with_oc_count_lesser_50_code= clean_oc_count_lesser_50_code[0]
+    filtered_rnames_as_oc_count_lesser_50_code= clean_oc_count_lesser_50_code[1]
+    filtered_rnums_as_oc_count_lesser_50_code= clean_oc_count_lesser_50_code[2]
+    filtered_room_oc_count_lesser_50_code= clean_oc_count_lesser_50_code[3]
+ 
+    filter_doors_as_per_oc_count_lesser_50_code= lookup_doors_in_rooms_as_oc_count_filter(flat_rooms_with_oc_count_lesser_50_code, filtered_rnames_as_oc_count_lesser_50_code, filtered_rnums_as_oc_count_lesser_50_code, filtered_room_oc_count_lesser_50_code, door_room_nums, doors)
+    filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_lesser_50_code= filter_doors_as_per_oc_count_lesser_50_code[0]
+    rnums_with_doors_and_oc_as_count_lesser_50_code= filter_doors_as_per_oc_count_lesser_50_code[1]
+    rnames_with_doors_and_oc_as_count_lesser_50_code= filter_doors_as_per_oc_count_lesser_50_code[2]
+    rooms_with_doors_and_oc_as_count_lesser_50_code= filter_doors_as_per_oc_count_lesser_50_code[3]
+    room_oc_count_for_rooms_with_doors_and_count_lesser_50_code= filter_doors_as_per_oc_count_lesser_50_code[4]
+    
+    # For occupant count lesser than 50 ppl and having one or more than one door
+    
+    idx_door_count_greater_0_on_dwidths_code= idx_filter_door_count_on_dwidths(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_lesser_50_code, 'greater', 0)
+    
+    filtered_rooms_as_per_oc_lesser_50_dcount_greater_0_code= room_info_filter_as_per_dcount_filter(idx_door_count_greater_0_on_dwidths_code, rnums_with_doors_and_oc_as_count_lesser_50_code,rnames_with_doors_and_oc_as_count_lesser_50_code, rooms_with_doors_and_oc_as_count_lesser_50_code, room_oc_count_for_rooms_with_doors_and_count_lesser_50_code)
+     
+    rnums_with_oc_lesser_50_and_dcount_greater_0_code= filtered_rooms_as_per_oc_lesser_50_dcount_greater_0_code[0]
+    rnames_with_oc_lesser_50_and_dcount_greater_0_code= filtered_rooms_as_per_oc_lesser_50_dcount_greater_0_code[1] 
+    rooms_with_oc_lesser_50_and_dcount_greater_0_code= filtered_rooms_as_per_oc_lesser_50_dcount_greater_0_code[2]
+    room_oc_count_lesser_50_and_dcount_greater_0_code= filtered_rooms_as_per_oc_lesser_50_dcount_greater_0_code[3]    
+    
+    filtered_door_widths_as_per_oc_and_dcount_greater_0_code= door_widths_for_doors_in_rooms_with_oc_filter_dcount_filter(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_lesser_50_code, idx_door_count_greater_0_on_dwidths_code, room_oc_count_lesser_50_and_dcount_greater_0_code)
+    total_egress_width_for_doors_in_rooms_with_oc_dcount_greater_0_code= filtered_door_widths_as_per_oc_and_dcount_greater_0_code[0]
+    total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_greater_0_code= filtered_door_widths_as_per_oc_and_dcount_greater_0_code[1]
+    idx_of_insufficent_door_width_with_oc_dcount_greater_0_code = filtered_door_widths_as_per_oc_and_dcount_greater_0_code[2]
+    print("Analysis of Rooms, as per {} code with Occupancy lesser than 50 persons & have one or more than one doors.".format(code))
+    print('*'*30)  
+    egress_width_analysis_code= output_analysis_for_door_widths(idx_of_insufficent_door_width_with_oc_dcount_greater_0_code, rnums_with_oc_lesser_50_and_dcount_greater_0_code, rnames_with_oc_lesser_50_and_dcount_greater_0_code, total_egress_width_for_doors_in_rooms_with_oc_dcount_greater_0_code, total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_greater_0_code) 
+    if len(idx_of_insufficent_door_width_with_oc_dcount_greater_0_code) != 0:
+        print('Please note that the addin does not take into account Doors from linked files.\nPlease do take into account these doors, additionally in the mentioned Rooms.')
+    else:
+        pass
+    print('*'*120)   
+  
+####################################################################################################################
 from rpw.ui.forms import SelectFromList
 from rpw.utils.coerce import to_category 
 
 ####################################################################################################################    
 
-userInputcategory = SelectFromList('Select Fire Code to follow', ['01.NBC', '02.SBC', '03.IBC', '04.NFPA', '05.DCD', '06.BS', '07.FN'])
+userInputcategory = SelectFromList('Select Fire Code to analyse for the Building.', ['01.NBC', '02.SBC', '03.IBC', '04.NFPA', '05.DCD', '06.BS', '07.FN'])
 userInputcategory = str(userInputcategory)
 
 ######################################################################################################################
-
 if userInputcategory == '01.NBC':
-    
-    occupancy_calculation_as_per_NBC = occupant_count_calculation(0)
-    occupant_count_total_as_per_NBC = occupancy_calculation_as_per_NBC[0]
-    occupant_level_name_as_per_NBC = occupancy_calculation_as_per_NBC[1]
-    occupant_count_for_each_level_as_per_NBC = occupancy_calculation_as_per_NBC[2]
-    egress_capacity_for_each_level_as_per_NBC = occupancy_calculation_as_per_NBC[3]
-    print("The total occupant count for the building, as per NBC is : {} people.".format(occupant_count_total_as_per_NBC))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_NBC = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_NBC,  occupant_count_for_each_level_as_per_NBC, egress_capacity_for_each_level_as_per_NBC)
-    print('*'*120)
-    
-    # Occupancy Analysis
-    
-    rooms_sublist_by_lvl_as_per_NBC = occupancy_calculation_as_per_NBC[4]
-    room_oc_count_sublist_by_lvl_as_per_NBC = occupancy_calculation_as_per_NBC[5]
-    
-    idx_oc_count_greater_50_ppl_NBC = filter_room_egress_capacity(room_oc_count_sublist_by_lvl_as_per_NBC , 'greater', 50)
-    
-    clean_oc_count_filter_NBC = clean_filter_list(idx_oc_count_greater_50_ppl_NBC, rooms_sublist_by_lvl_as_per_NBC, room_oc_count_sublist_by_lvl_as_per_NBC, )
-    flat_rooms_with_oc_count_filtered_NBC = clean_oc_count_filter_NBC[0]
-    filtered_rnames_as_oc_count_filtered_NBC = clean_oc_count_filter_NBC[1]
-    filtered_rnums_as_oc_count_filtered_NBC = clean_oc_count_filter_NBC[2]
-    filtered_room_oc_count_filtered_NBC = clean_oc_count_filter_NBC[3]
- 
-    filter_doors_as_per_oc_count_filter_NBC = lookup_doors_in_rooms_as_oc_count_filter(flat_rooms_with_oc_count_filtered_NBC, filtered_rnames_as_oc_count_filtered_NBC, filtered_rnums_as_oc_count_filtered_NBC, filtered_room_oc_count_filtered_NBC, door_room_nums, doors)
-    filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_filter_NBC = filter_doors_as_per_oc_count_filter_NBC[0]
-    rnums_with_doors_and_oc_as_count_filter_NBC = filter_doors_as_per_oc_count_filter_NBC[1]
-    rnames_with_doors_and_oc_as_count_filter_NBC = filter_doors_as_per_oc_count_filter_NBC[2]
-    rooms_with_doors_and_oc_as_count_filter_NBC = filter_doors_as_per_oc_count_filter_NBC[3]
-    room_oc_count_for_rooms_with_doors_and_count_filter_NBC = filter_doors_as_per_oc_count_filter_NBC[4]
- 
-    idx_door_count_filter_on_dwidths_NBC = idx_filter_door_count_on_dwidths(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_filter_NBC, 'greater', 1)
-    
-    filtered_rooms_as_per_oc_filter_dcount_filter_NBC = room_info_filter_as_per_dcount_filter(idx_door_count_filter_on_dwidths_NBC, rnums_with_doors_and_oc_as_count_filter_NBC,rnames_with_doors_and_oc_as_count_filter_NBC, rooms_with_doors_and_oc_as_count_filter_NBC, room_oc_count_for_rooms_with_doors_and_count_filter_NBC)
-     
-    rnums_with_oc_filter_and_dcount_filter_NBC = filtered_rooms_as_per_oc_filter_dcount_filter_NBC[0]
-    rnames_with_oc_filter_and_dcount_filter_NBC = filtered_rooms_as_per_oc_filter_dcount_filter_NBC[1] 
-    rooms_with_oc_filter_and_dcount_filter_NBC = filtered_rooms_as_per_oc_filter_dcount_filter_NBC[2]
-    room_oc_count_filter_and_dcount_filter_NBC = filtered_rooms_as_per_oc_filter_dcount_filter_NBC[3] 
-    
-    filtered_door_widths_as_per_oc_and_dcount_filter_NBC = door_widths_for_doors_in_rooms_with_oc_filter_dcount_filter(filtered_sublist_of_dwidth_of_doors_in_rooms_with_oc_filter_NBC , idx_door_count_filter_on_dwidths_NBC, room_oc_count_filter_and_dcount_filter_NBC )
-    total_egress_width_for_doors_in_rooms_with_oc_dcount_filter_NBC = filtered_door_widths_as_per_oc_and_dcount_filter_NBC[0]
-    total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_filter_NBC = filtered_door_widths_as_per_oc_and_dcount_filter_NBC[1]
-    idx_of_insufficent_door_width_with_oc_dcount_filter_NBC = filtered_door_widths_as_per_oc_and_dcount_filter_NBC[2]
 
-    egress_width_analysis_NBC = output_analysis_for_door_widths(idx_of_insufficent_door_width_with_oc_dcount_filter_NBC, rnums_with_oc_filter_and_dcount_filter_NBC, rnames_with_oc_filter_and_dcount_filter_NBC, total_egress_width_for_doors_in_rooms_with_oc_dcount_filter_NBC, total_egress_width_reqd_for_doors_in_rooms_with_oc_dcount_filter_NBC) 
-                
-    
+    occupancy_calculation_as_per_NBC = occupant_count_calculation(0)
+    process_NBC_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_NBC, 'NBC')
+  
 ######################################################################################################################
 elif userInputcategory == '02.SBC':
     occupancy_calculation_as_per_SBC = occupant_count_calculation(1)
-    occupant_count_total_as_per_SBC = occupancy_calculation_as_per_SBC[0]
-    occupant_level_name_as_per_SBC = occupancy_calculation_as_per_SBC[1]
-    occupant_count_for_each_level_as_per_SBC = occupancy_calculation_as_per_SBC[2]
-    egress_capacity_for_each_level_as_per_SBC = occupancy_calculation_as_per_SBC[3]
-    print("The total occupant count for the building, as per SBC is : {} people.".format(occupant_count_total_as_per_SBC))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_SBC = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_SBC, occupant_count_for_each_level_as_per_SBC, egress_capacity_for_each_level_as_per_SBC)
-    print('*'*120)    
+    process_SBC_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_SBC, 'SBC')
     
 ######################################################################################################################   
 elif userInputcategory == '03.IBC':
     occupancy_calculation_as_per_IBC = occupant_count_calculation(2)
-    occupant_count_total_as_per_IBC = occupancy_calculation_as_per_IBC[0]
-    occupant_level_name_as_per_IBC = occupancy_calculation_as_per_IBC[1]
-    occupant_count_for_each_level_as_per_IBC = occupancy_calculation_as_per_IBC[2]
-    egress_capacity_for_each_level_as_per_IBC = occupancy_calculation_as_per_IBC[3]    
-    print("The total occupant count for the building, as per IBC is : {} people.".format(occupant_count_total_as_per_IBC))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_IBC = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_IBC, occupant_count_for_each_level_as_per_IBC, egress_capacity_for_each_level_as_per_IBC)
-    print('*'*120)    
+    process_IBC_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_IBC, 'IBC')
  
-######################################################################################################################
+#####################################################################################################################
 elif userInputcategory == '04.NFPA':
     occupancy_calculation_as_per_NFPA = occupant_count_calculation(3)
-    occupant_count_total_as_per_NFPA = occupancy_calculation_as_per_NFPA[0]
-    occupant_level_name_as_per_NFPA = occupancy_calculation_as_per_NFPA[1]
-    occupant_count_for_each_level_as_per_NFPA = occupancy_calculation_as_per_NFPA[2]
-    egress_capacity_for_each_level_as_per_NFPA = occupancy_calculation_as_per_NFPA[3]  
-    print("The total occupant count for the building, as per NFPA is : {} people.".format(occupant_count_total_as_per_NFPA))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_NFPA = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_NFPA, occupant_count_for_each_level_as_per_NFPA, egress_capacity_for_each_level_as_per_NFPA)
-    print('*'*120)     
-    
+    process_NFPA_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_NFPA, 'NFPA')
+
 ######################################################################################################################
 elif userInputcategory == '05.DCD':
     occupancy_calculation_as_per_DCD = occupant_count_calculation(4)
-    occupant_count_total_as_per_DCD = occupancy_calculation_as_per_DCD[0]
-    occupant_level_name_as_per_DCD = occupancy_calculation_as_per_DCD[1]
-    occupant_count_for_each_level_as_per_DCD = occupancy_calculation_as_per_DCD[2]
-    egress_capacity_for_each_level_as_per_DCD = occupancy_calculation_as_per_DCD[3]     
-    print("The total occupant count for the building, as per DCD is : {} people.".format(occupant_count_total_as_per_DCD))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_DCD = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_DCD, occupant_count_for_each_level_as_per_DCD, egress_capacity_for_each_level_as_per_DCD)
-    print('*'*120)     
+    process_DCD_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_DCD, 'DCD')
  
 ######################################################################################################################
 elif userInputcategory == '06.BS':
     occupancy_calculation_as_per_BS = occupant_count_calculation(5)
-    occupant_count_total_as_per_BS = occupancy_calculation_as_per_BS[0]
-    occupant_level_name_as_per_BS = occupancy_calculation_as_per_BS[1]
-    occupant_count_for_each_level_as_per_BS = occupancy_calculation_as_per_BS[2]
-    egress_capacity_for_each_level_as_per_BS = occupancy_calculation_as_per_BS[3]   
-    print("The total occupant count for the building, as per BS is : {} people.".format(occupant_count_total_as_per_BS))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_BS = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_BS, occupant_count_for_each_level_as_per_BS, egress_capacity_for_each_level_as_per_BS)
-    print('*'*120)    
+    process_BS_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_BS, 'BS')
     
 ######################################################################################################################
 elif userInputcategory == '07.FN':
     occupancy_calculation_as_per_FN = occupant_count_calculation(6)
-    occupant_count_total_as_per_FN = occupancy_calculation_as_per_FN[0]
-    occupant_level_name_as_per_FN = occupancy_calculation_as_per_FN[1]
-    occupant_count_for_each_level_as_per_FN = occupancy_calculation_as_per_FN[2]
-    egress_capacity_for_each_level_as_per_FN = occupancy_calculation_as_per_FN[3]     
-    print("The total occupant count for the building, as per FN is : {} people.".format(occupant_count_total_as_per_FN))
-    print('*'*120)
-    occupancy_calculation_per_level_as_per_FN = output_statement_for_rooms_of_each_level(occupant_level_name_as_per_FN, occupant_count_for_each_level_as_per_FN, egress_capacity_for_each_level_as_per_FN)
-    print('*'*120)
+    process_FN_calculations = process_occupant_count_calc_as_per_sel_code(occupancy_calculation_as_per_FN, 'FN')
       
 ######################################################################################################################
 else:
