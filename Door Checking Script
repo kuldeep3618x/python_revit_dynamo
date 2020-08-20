@@ -12,6 +12,10 @@ from pyrevit import HOST_APP
 from pyrevit import revit, DB
 from itertools import chain
 from itertools import islice
+from pyrevit import framework
+
+out = script.get_output()
+out.add_style('body{font-family: CenturyGothic; font-size: 12pt; }')
 
 ####################################################################################################################
 
@@ -61,6 +65,7 @@ door_equal_leaves = sheet.col_values(7)
 door_Leaf_Width = sheet.col_values(8)
 door_Leaf_Height = sheet.col_values(9)
 door_Undercut = sheet.col_values(10)
+
 door_fire_rating = sheet.col_values(22)
 door_host_fire_rating = sheet.col_values(21)
 door_acoustics_rating = sheet.col_values(23)
@@ -70,7 +75,13 @@ door_Leaf_Face_Finish = sheet.col_values(14)
 door_Frame_Face_Finish = sheet.col_values(18)
 door_grills = sheet.col_values(24)
 
-door_function_dictionary = {z[0]:list(z[1:]) for z in zip(function_param_to_read, door_Leaf_Number, door_equal_leaves, door_Leaf_Width, door_Leaf_Height, door_Undercut, door_fire_rating, door_host_fire_rating, door_acoustics_rating, door_Leaf_Material, door_Leaf_Face_Finish, door_Frame_Material, door_Frame_Face_Finish, door_grills)}
+door_Leaf_Type = sheet.col_values(11)
+door_Leaf_Construction = sheet.col_values(13)
+door_Frame_Elevation = sheet.col_values(15)
+door_Frame_Profile = sheet.col_values(17)
+door_Saddle_Type = sheet.col_values(19)
+
+door_function_dictionary = {z[0]:list(z[1:]) for z in zip(function_param_to_read, door_Leaf_Number, door_equal_leaves, door_Leaf_Width, door_Leaf_Height, door_Undercut, door_fire_rating, door_host_fire_rating, door_acoustics_rating, door_Leaf_Material, door_Leaf_Face_Finish, door_Frame_Material, door_Frame_Face_Finish, door_grills, door_Leaf_Type, door_Leaf_Construction, door_Frame_Elevation, door_Frame_Profile, door_Saddle_Type)}
 # print(door_function_dictionary)
 
 ####################################################################################################################
@@ -100,10 +111,26 @@ doors = all_elements_of_category(BuiltInCategory.OST_Doors)
 door_comments = [d.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).AsString() for d in doors]
 # print(door_comments)
 
-exclusions = ["ROLLING SHUTTER", "ACCESS PANEL", "CLOSET DOOR", "Glass door" , "Curtain wall door"]
+exclusions = ["ROLLING SHUTTER", "ACCESS PANEL", "CLOSET DOOR", "GLASS DOOR" , "CURTAIN WALL DOOR"]
+# exclusions = [ "ACCESS PANEL"]
 
 indices_for_non_glazed_doors = [i for i, x in enumerate(door_comments) if x not in exclusions]
 # print(indices_for_non_glazed_doors)
+
+####################################################################################################################
+# Master Room Information
+ 
+rooms = all_elements_of_category(BuiltInCategory.OST_Rooms)
+room_numbers = []
+for r in rooms:
+    temp = []
+    try:
+        temp = r.get_Parameter(BuiltInParameter.ROOM_NUMBER).AsString()
+    except:
+        temp = 'None'
+    room_numbers.append(temp)   
+
+room_Selections = [out.linkify(r.Id) for r in rooms]  
 
 ####################################################################################################################
 # Master Door Information- after filtering Doors
@@ -114,30 +141,43 @@ doors = [doors[i] for i in indices_for_non_glazed_doors]
 door_numbers = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors]
 # print(door_numbers)
 
+indices_of_sorted_doors = sorted(range(len(door_numbers)), key=lambda k: door_numbers[k])
+
+doors = [doors[i] for i in indices_of_sorted_doors]
+door_numbers = [door_numbers[i] for i in indices_of_sorted_doors]
+# print(door_numbers)
+
 # Getting Room Numbers in Doors 
 door_room_numbers = shared_parameter_values(doors, 'Room_Number')
 # print(door_room_numbers)
 
-indices_of_doors_with_missing_door_room_numbers = [i for i, x in enumerate(door_room_numbers) if x == None]
-door_numbers_with_missing_door_room_numbers = [door_numbers[i] for i in indices_of_doors_with_missing_door_room_numbers]
+door_param_empty_or_None = [None, '']
 
-indices_of_doors_with_door_room_numbers = [i for i, x in enumerate(door_room_numbers) if x != None]
+indices_of_doors_with_missing_door_room_numbers = [i for i, x in enumerate(door_room_numbers) if x in door_param_empty_or_None]
+door_numbers_with_missing_door_room_numbers = [door_numbers[i] for i in indices_of_doors_with_missing_door_room_numbers]
+doors_with_missing_door_room_numbers = [doors[i] for i in indices_of_doors_with_missing_door_room_numbers]
+door_Selections_with_missing_door_room_numbers = [out.linkify(door.Id) for door in doors_with_missing_door_room_numbers]     
+
+indices_of_doors_with_door_room_numbers = [i for i, x in enumerate(door_room_numbers) if x not in door_param_empty_or_None]
 doors = [doors[i] for i in indices_of_doors_with_door_room_numbers]
 door_numbers = [door_numbers[i] for i in indices_of_doors_with_door_room_numbers]
 door_room_numbers = [door_room_numbers[i] for i in indices_of_doors_with_door_room_numbers]
 
 # Getting Room Names in Doors 
 door_room_names = shared_parameter_values(doors, 'Room_Name')
-indices_of_doors_with_missing_door_room_names = [i for i, x in enumerate(door_room_names) if x == None]
-door_numbers_with_missing_door_room_names = [doors[i] for i in indices_of_doors_with_missing_door_room_names]
+indices_of_doors_with_missing_door_room_names = [i for i, x in enumerate(door_room_names) if x in door_param_empty_or_None]
+door_numbers_with_missing_door_room_names = [door_numbers[i] for i in indices_of_doors_with_missing_door_room_names]
+doors_with_missing_door_room_names = [doors[i] for i in indices_of_doors_with_missing_door_room_names]
+door_Selections_with_missing_door_room_names = [out.linkify(door.Id) for door in doors_with_missing_door_room_names]   
 
-
-indices_of_doors_with_door_room_names = [i for i, x in enumerate(door_room_names) if x != None]
+indices_of_doors_with_door_room_names = [i for i, x in enumerate(door_room_names) if x not in door_param_empty_or_None]
 doors = [doors[i] for i in indices_of_doors_with_door_room_names]
 door_numbers = [door_numbers[i] for i in indices_of_doors_with_door_room_names]
 door_room_numbers = [door_room_numbers[i] for i in indices_of_doors_with_door_room_names]
 door_room_names = [door_room_names[i] for i in indices_of_doors_with_door_room_names]
 # print(door_numbers, door_room_numbers, door_room_names)
+
+door_Selections = [out.linkify(door.Id) for door in doors]             
 
 ####################################################################################################################
 
@@ -164,8 +204,10 @@ def troom_froom_name_for_doors(doors_to_acquire = doors):
         except:
             temp1 = 'fail'
             troom.append(temp1)
-
-    filtered_from_rooms_index = [i for i, x in enumerate(froom) if x != None]
+    
+    door_param_empty_or_None = [None, '']
+    
+    filtered_from_rooms_index = [i for i, x in enumerate(froom) if x not in door_param_empty_or_None]
     # print(filtered_from_rooms_index)
     filtered_from_rooms = [froom[i] for i in filtered_from_rooms_index]
     # print(filtered_from_rooms)
@@ -182,7 +224,7 @@ def troom_froom_name_for_doors(doors_to_acquire = doors):
         from_room_name_list[index] = replacements
     # print(from_room_name_list)
 
-    filtered_to_rooms_index = [i for i, x in enumerate(troom) if x != None]
+    filtered_to_rooms_index = [i for i, x in enumerate(troom) if x not in door_param_empty_or_None]
     filtered_to_rooms = [troom[i] for i in filtered_to_rooms_index]
     # print(filtered_to_rooms)
     ToRoomName = [[r.get_Parameter(BuiltInParameter.ROOM_NAME).AsString() for r in filtered_to_rooms]]
@@ -286,8 +328,9 @@ def unit_conversion(revit_value_in_feet):
 
 def elem_param_values_test(elems, parameter_name):
     elem_param_values = shared_parameter_values(elems,parameter_name)
-    elem_param_None_index = [i for i, x in enumerate(elem_param_values) if x == None]
-    elem_param_valid_index = [ i for i, x in enumerate(elem_param_values) if x != None]
+    elem_param_empty_or_None = [None, '']
+    elem_param_None_index = [i for i, x in enumerate(elem_param_values) if x in elem_param_empty_or_None]
+    elem_param_valid_index = [ i for i, x in enumerate(elem_param_values) if x not in elem_param_empty_or_None]
     return (elem_param_values, elem_param_valid_index, elem_param_None_index)
 
 ####################################################################################################################
@@ -312,6 +355,7 @@ door_room_numbers_with_functions = [door_room_numbers[i] for i in index_for_door
 door_room_names_with_functions = [door_room_names[i] for i in index_for_doors_with_functions_assigned]
 door_to_room_names_with_functions = [door_to_room_name_list[i] for i in index_for_doors_with_functions_assigned]
 door_from_room_names_with_functions = [door_from_room_name_list[i] for i in index_for_doors_with_functions_assigned]
+door_Selections_with_functions = [door_Selections[i] for i in index_for_doors_with_functions_assigned]         
 
 door_function_values_invalid = list((set(door_function_values).difference(identifier_param_to_read)))
 index_of_invalid_door_functions = []    
@@ -329,8 +373,11 @@ door_room_numbers_with_valid_functions = [ e for i, e in enumerate(door_room_num
 door_room_names_with_valid_functions = [ e for i, e in enumerate(door_room_names_with_functions) if i not in set_index_of_invalid_door_functions]
 door_to_room_names_with_valid_functions = [ e for i, e in enumerate(door_to_room_names_with_functions) if i not in set_index_of_invalid_door_functions]
 door_from_room_names_with_valid_functions = [ e for i, e in enumerate(door_from_room_names_with_functions) if i not in set_index_of_invalid_door_functions]
+door_Selections_with_valid_functions = [ e for i, e in enumerate(door_Selections_with_functions) if i not in set_index_of_invalid_door_functions]           # test
+
 # print(door_numbers_with_valid_functions)
 filtered_door_function_valid_values = [e for i, e in enumerate(filtered_door_function_values) if i not in set_index_of_invalid_door_functions]
+# print(filtered_door_function_valid_values)
 
 ####################################################################################################################
 ####################################################################################################################
@@ -350,6 +397,7 @@ def mismatch_index_for_door_parameters(values_filtered_from_dictionary,test_to_c
 # Door Leaf Number
 
 test_for_doors_with_leaves = all_elements_with_type_parameter_AsInteger(doors_with_valid_functions, 'Leaf_Number')
+
 # print(test_for_doors_with_leaves)
 test_for_doors_with_leaves = [float(x) for x in test_for_doors_with_leaves]
 values_from_dict_leaf_number = [door_function_dictionary[x][0] for x in filtered_door_function_valid_values]     # value column index from dictionary for the key list
@@ -359,11 +407,8 @@ mismatch_index_for_door_leaf_number = mismatch_index_for_door_parameters(values_
 set_index_of_mismatch_door_leaf_number = set(mismatch_index_for_door_leaf_number)
 doors_with_valid_leaf_number = [ e for i, e in enumerate(doors_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
 door_numbers_with_valid_leaf_number = [ e for i, e in enumerate(door_numbers_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
-door_room_numbers_with_valid_leaf_number = [ e for i, e in enumerate(door_room_numbers_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
-door_room_names_with_valid_leaf_number = [ e for i, e in enumerate(door_room_names_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
-door_to_room_names_with_valid_leaf_number = [ e for i, e in enumerate(door_to_room_names_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
-door_from_room_names_with_valid_leaf_number = [ e for i, e in enumerate(door_from_room_names_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_number]
 # print(door_numbers_with_valid_leaf_number)
+
 filtered_door_leaf_valid_values = [e for i, e in enumerate(test_for_doors_with_leaves) if i not in set_index_of_mismatch_door_leaf_number]
 
 ####################################################################################################################
@@ -459,7 +504,7 @@ doors_with_valid_single_equal_leaf = [ e for i, e in enumerate(doors_with_single
 door_numbers_with_valid_single_equal_leaf = [ e for i, e in enumerate(door_numbers_with_single_leaf) if i not in set_index_of_mismatch_door_with_single_equal_unequal_leaf]
 # print(door_numbers_with_valid_single_equal_leaf)
 
-####################################################################################################################
+###################################################################################################################
 ###################################################################################################################
 # Index of mismatching door sizes
 
@@ -518,7 +563,6 @@ def test_for_unequal_door_dimensions(filtered_doors, param, sheet_col_val):
 ###################################################################################################################
 ####################################################################################################################
 # Leaf Widths
-
 # Single Leaf Doors
 
 test_index_for_single_doors_width = test_for_door_dimensions(doors_with_valid_single_equal_leaf, 'Leaf_Width', 2)
@@ -536,7 +580,6 @@ doors_with_valid_double_equal_leaves_width = [ e for i, e in enumerate(doors_wit
 door_numbers_with_valid_double_equal_leaves_width = [ e for i, e in enumerate(doors_with_valid_equal_leaves) if i not in set_index_of_mismatch_doors_with_double_equal_leaves_width]
 
 # Double Unequal Leaf Doors
-
 # Main Panel Width
 
 test_index_for_double_unequal_doors_main_panel_width = test_for_unequal_door_dimensions(doors_with_valid_unequal_leaves, 'Main Panel Width', 2)
@@ -556,7 +599,6 @@ door_numbers_with_valid_unequal_leaves_side_panel_width = [ e for i, e in enumer
 ####################################################################################################################
 ####################################################################################################################
 # Leaf Height
-
 # Single Leaf Doors
 
 test_index_for_single_doors_height = test_for_door_dimensions(doors_with_valid_single_equal_leaf, 'Leaf_Height', 3)
@@ -615,7 +657,7 @@ door_function_for_doors_with_fire_rating = elem_param_values_test(doors_with_fir
 door_function_values_for_doors_with_fire_rating = door_function_for_doors_with_fire_rating[0]
 # print(door_function_values_for_doors_with_fire_rating)
 values_from_dict_doors_with_fire_rating = [door_function_dictionary[x][5] for x in door_function_values_for_doors_with_fire_rating]
-values_from_dict_doors_with_fire_rating = [int(x) for x in values_from_dict_doors_with_fire_rating]
+# values_from_dict_doors_with_fire_rating = [int(x) for x in values_from_dict_doors_with_fire_rating]
 # print(values_from_dict_doors_with_fire_rating)
 
 ####################################################################################################################
@@ -683,7 +725,6 @@ doors_with_walls_with_invalid_fire_ratings = [e for i, e in enumerate(doors_with
 
 doors_with_walls_with_valid_fire_ratings = [e for i, e in enumerate(doors_with_fire_rating_and_wall_rating) if i not in set_index_of_mismatch_doors_fire_rating_against_wall_ratings]
 door_numbers_with_walls_with_valid_fire_ratings = [e for i, e in enumerate(door_numbers_with_fire_rating_and_wall_rating) if i not in set_index_of_mismatch_doors_fire_rating_against_wall_ratings]
-
 
 ####################################################################################################################
 ####################################################################################################################
@@ -774,7 +815,7 @@ door_acoustic_rating_values_with_acoustic_rated_walls = shared_parameter_values(
 door_acoustic_rating_values_with_acoustic_rated_walls = [int(x) for x in door_acoustic_rating_values_with_acoustic_rated_walls]
 # print(door_acoustic_rating_values_with_acoustic_rated_walls)
 
-expected_door_ratings_as_per_wall_acoustic_ratings = [(x - 20) for x in acoustic_rated_wall_ratings_for_doors_with_acoustic_ratings]
+expected_door_ratings_as_per_wall_acoustic_ratings = [(x - 15) for x in acoustic_rated_wall_ratings_for_doors_with_acoustic_ratings]
 
 mismatch_index_for_doors_against_wall_ratings = mismatch_index_for_door_parameters(expected_door_ratings_as_per_wall_acoustic_ratings, door_acoustic_rating_values_with_acoustic_rated_walls)
 # print(mismatch_index_for_doors_against_wall_ratings)
@@ -785,11 +826,10 @@ doors_with_walls_with_invalid_acoustic_ratings = [e for i, e in enumerate(doors_
 doors_with_walls_with_valid_acoustic_ratings = [e for i, e in enumerate(doors_with_acoustic_rating_and_wall_rating) if i not in set_index_of_mismatch_doors_acoustic_rating_against_wall_ratings]
 door_numbers_with_walls_with_valid_acoustic_ratings = [e for i, e in enumerate(door_numbers_with_acoustic_rating_and_wall_rating) if i not in set_index_of_mismatch_doors_acoustic_rating_against_wall_ratings]
 
-
 ####################################################################################################################
 ####################################################################################################################
 
-def material_and_finishes_mismatch_index(material_or_finish_param, doors_to_check, sheet_col_to_check):
+def leaf_frame_material_finishes_type_mismatch_index(material_or_finish_param, doors_to_check, sheet_col_to_check):
     test_for_doors_with_material_or_finish = all_elements_with_type_parameter_AsString(doors_to_check, material_or_finish_param)
     door_function_for_doors_with_material_or_finish = elem_param_values_test(doors_to_check, 'Room_Function') 
     door_function_values_for_doors_with_material_or_finish = door_function_for_doors_with_material_or_finish[0]
@@ -801,7 +841,7 @@ def material_and_finishes_mismatch_index(material_or_finish_param, doors_to_chec
 ####################################################################################################################
 # Leaf Material
 
-mismatch_index_for_doors_leaf_material = material_and_finishes_mismatch_index('Leaf_Material', doors_with_valid_functions, 8)
+mismatch_index_for_doors_leaf_material = leaf_frame_material_finishes_type_mismatch_index('Leaf_Material', doors_with_valid_functions, 8)
 set_index_of_mismatch_doors_leaf_material= set(mismatch_index_for_doors_leaf_material)
 doors_with_invalid_leaf_material = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_doors_leaf_material]
 
@@ -812,7 +852,7 @@ door_numbers_with_valid_leaf_material = [e for i, e in enumerate(door_numbers_wi
 ####################################################################################################################
 # Leaf Finish
 
-mismatch_index_for_doors_leaf_finish = material_and_finishes_mismatch_index('Leaf_Face_Finish', doors_with_valid_functions, 9)
+mismatch_index_for_doors_leaf_finish = leaf_frame_material_finishes_type_mismatch_index('Leaf_Face_Finish', doors_with_valid_functions, 9)
 set_index_of_mismatch_doors_leaf_finish = set(mismatch_index_for_doors_leaf_finish)
 doors_with_invalid_leaf_finish = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_doors_leaf_finish]
 
@@ -823,7 +863,7 @@ door_numbers_with_valid_leaf_finish = [e for i, e in enumerate(door_numbers_with
 ####################################################################################################################
 # Frame Material
 
-mismatch_index_for_doors_frame_material = material_and_finishes_mismatch_index('Frame_Material', doors_with_valid_functions, 10)
+mismatch_index_for_doors_frame_material = leaf_frame_material_finishes_type_mismatch_index('Frame_Material', doors_with_valid_functions, 10)
 set_index_of_mismatch_doors_frame_material= set(mismatch_index_for_doors_frame_material)
 doors_with_invalid_frame_material = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_doors_frame_material]
 
@@ -834,7 +874,7 @@ door_numbers_with_valid_frame_material = [e for i, e in enumerate(door_numbers_w
 ####################################################################################################################
 # Frame Finish
 
-mismatch_index_for_doors_frame_finish = material_and_finishes_mismatch_index('Frame_Face_Finish', doors_with_valid_functions, 11)
+mismatch_index_for_doors_frame_finish = leaf_frame_material_finishes_type_mismatch_index('Frame_Face_Finish', doors_with_valid_functions, 11)
 set_index_of_mismatch_doors_frame_finish = set(mismatch_index_for_doors_frame_finish)
 doors_with_invalid_frame_finish = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_doors_frame_finish]
 
@@ -844,7 +884,6 @@ door_numbers_with_valid_frame_finish = [e for i, e in enumerate(door_numbers_wit
 
 ###################################################################################################################
 ###################################################################################################################
-
 # Undercut
 
 test_index_for_doors_undercut = test_for_door_dimensions(doors_with_valid_functions, 'Undercut', 4)
@@ -857,7 +896,6 @@ doors_with_valid_undercut = [e for i, e in enumerate(doors_with_valid_functions)
 door_numbers_with_valid_undercut = [e for i, e in enumerate(door_numbers_with_valid_functions) if i not in set_index_of_mismatch_doors_with_undercut]
 
 ###################################################################################################################
-
 # Grilled Doors
 
 test_for_leaf_elevation_doors = all_elements_with_type_parameter_AsString(doors_with_valid_functions, 'Leaf_Elevation')
@@ -893,21 +931,132 @@ index_of_doors_with_acoustic_rated_grill_doors = [i for i, x in enumerate(acoust
 doors_with_grills_and_acoustic_rated = [e for i, e in enumerate(doors_with_grills) if i in index_of_doors_with_acoustic_rated_grill_doors]
 door_numbers_with_grills_and_acoustic_rated = [e for i, e in enumerate(door_numbers_with_grills) if i in index_of_doors_with_acoustic_rated_grill_doors]
 
+####################################################################################################################
+# Speciality Items
+####################################################################################################################
+# Door Leaf Type
+
+mismatch_index_for_doors_leaf_type = leaf_frame_material_finishes_type_mismatch_index('Type Comments', doors_with_valid_functions, 13)
+set_index_of_mismatch_door_leaf_type = set(mismatch_index_for_doors_leaf_type)
+doors_with_invalid_leaf_type = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_door_leaf_type]
+
+doors_with_valid_leaf_type = [e for i, e in enumerate(doors_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_type]
+door_numbers_with_valid_leaf_type = [e for i, e in enumerate(door_numbers_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_type]
+# print(door_numbers_with_valid_leaf_type)
+
+####################################################################################################################
+# Door Leaf Construction 
+
+mismatch_index_for_doors_leaf_construction = leaf_frame_material_finishes_type_mismatch_index('Construction', doors_with_valid_functions, 14)
+set_index_of_mismatch_door_leaf_construction = set(mismatch_index_for_doors_leaf_construction)
+doors_with_invalid_leaf_construction = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_door_leaf_construction]
+
+doors_with_valid_leaf_construction = [e for i, e in enumerate(doors_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_construction]
+door_numbers_with_valid_leaf_construction = [e for i, e in enumerate(door_numbers_with_valid_functions) if i not in set_index_of_mismatch_door_leaf_construction]
+# print(door_numbers_with_valid_leaf_construction )
+
+####################################################################################################################
+# Door Frame Elevation
+
+mismatch_index_for_doors_frame_elevation = leaf_frame_material_finishes_type_mismatch_index('Frame_Elevation', doors_with_valid_functions, 15)
+set_index_of_mismatch_door_frame_elevation = set(mismatch_index_for_doors_frame_elevation)
+doors_with_invalid_frame_elevation = [e for i, e in enumerate(doors_with_valid_functions) if i in set_index_of_mismatch_door_frame_elevation]
+
+doors_with_valid_frame_elevation = [e for i, e in enumerate(doors_with_valid_functions) if i not in set_index_of_mismatch_door_frame_elevation]
+door_numbers_with_valid_frame_elevation = [e for i, e in enumerate(door_numbers_with_valid_functions) if i not in set_index_of_mismatch_door_frame_elevation]
+# print(door_numbers_with_valid_frame_elevation)
+
+
+####################################################################################################################
+####################################################################################################################
+# Door Frame Profile
+
+frame_profile_for_doors_with_index = elem_param_values_test(doors_with_valid_functions, 'Frame_Profile')
+# print(frame_profile_for_doors_with_index)
+
+frame_profile_values = frame_profile_for_doors_with_index[0]
+index_for_doors_with_frame_profile_assigned = frame_profile_for_doors_with_index[1]
+index_for_doors_with_no_frame_profile_assigned = frame_profile_for_doors_with_index[2]
+
+filtered_door_frame_profile_values = [frame_profile_values[i] for i in index_for_doors_with_frame_profile_assigned]
+# print(filtered_door_frame_profile_values)
+
+# ####################################################################################################################
+# # Doors with no Frame Profile assigned
+
+doors_with_no_frame_profile_assigned = [doors_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+
+doors_with_frame_profile = [doors_with_valid_functions[i] for i in index_for_doors_with_frame_profile_assigned]
+door_numbers_with_frame_profile = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_frame_profile_assigned]
+
+door_function_for_doors_with_frame_profile = elem_param_values_test(doors_with_frame_profile, "Room_Function")
+# print(door_function_for_doors_with_frame_profile)
+door_function_values_for_doors_with_frame_profile = door_function_for_doors_with_frame_profile[0]
+# print(door_function_values_for_doors_with_frame_profile)
+values_from_dict_doors_with_frame_profile = [door_function_dictionary[x][16] for x in door_function_values_for_doors_with_frame_profile]
+# print(values_from_dict_doors_with_frame_profile)
+
+# ####################################################################################################################
+# # Doors with mismatch Frame Profile assigned
+
+mismatch_index_for_doors_with_frame_profile = mismatch_index_for_door_parameters(values_from_dict_doors_with_frame_profile, filtered_door_frame_profile_values)
+# print(mismatch_index_for_doors_with_frame_profile)
+
+set_index_of_mismatch_door_with_frame_profile = set(mismatch_index_for_doors_with_frame_profile)
+doors_with_invalid_frame_profile = [e for i, e in enumerate(doors_with_frame_profile) if i in set_index_of_mismatch_door_with_frame_profile]
+# print(doors_with_invalid_frame_profile)
+
+
+####################################################################################################################
+####################################################################################################################
+# Door Saddle Type
+
+saddle_type_for_doors_with_index = elem_param_values_test(doors_with_valid_functions, 'Saddle Type')
+# print(saddle_type_for_doors_with_index)
+
+saddle_type_values = saddle_type_for_doors_with_index[0]
+index_for_doors_with_saddle_type_assigned = saddle_type_for_doors_with_index[1]
+index_for_doors_with_no_saddle_type_assigned = saddle_type_for_doors_with_index[2]
+
+filtered_door_saddle_type_values = [saddle_type_values[i] for i in index_for_doors_with_saddle_type_assigned]
+# print(filtered_door_saddle_type_values)
+
+####################################################################################################################
+# Doors with no Saddle Type assigned
+
+doors_with_no_saddle_type_assigned = [doors_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+
+doors_with_saddle_type = [doors_with_valid_functions[i] for i in index_for_doors_with_saddle_type_assigned]
+door_numbers_with_saddle_type = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_saddle_type_assigned]
+
+door_function_for_doors_with_saddle_type = elem_param_values_test(doors_with_saddle_type, "Room_Function")
+# print(door_function_for_doors_with_saddle_type)
+door_function_values_for_doors_with_saddle_type = door_function_for_doors_with_saddle_type[0]
+# print(door_function_values_for_doors_with_saddle_type)
+values_from_dict_doors_with_saddle_type = [door_function_dictionary[x][17] for x in door_function_values_for_doors_with_saddle_type]
+# print(values_from_dict_doors_with_saddle_type)
+
+####################################################################################################################
+# Doors with mismatch Saddle Type assigned
+
+mismatch_index_for_doors_with_saddle_type = mismatch_index_for_door_parameters(values_from_dict_doors_with_saddle_type, filtered_door_saddle_type_values)
+# print(mismatch_index_for_doors_with_saddle_type)
+
+set_index_of_mismatch_door_with_saddle_type = set(mismatch_index_for_doors_with_saddle_type)
+doors_with_invalid_saddle_type = [e for i, e in enumerate(doors_with_saddle_type) if i in set_index_of_mismatch_door_with_saddle_type]
+# print(doors_with_invalid_saddle_type)
+
+####################################################################################################################
 
 ####################################################################################################################
 # Generates Output Statement with Door Number, Room Number, Room Name, To Room & From Room in the format 
 
-def output_statement(sample_door_num_with_mismatch, sample_room_num_with_mismatch, sample_room_name_with_mismatch, sample_to_room_with_mismatch, sample_from_room_with_mismatch):
-    sample_door_num_with_mismatch = ['Door Number: ' + item + ', ' for item in sample_door_num_with_mismatch]
-    sample_room_num_with_mismatch = ['Room Number: ' + item + ', ' for item in sample_room_num_with_mismatch]
-    sample_room_name_with_mismatch = ['Room Name: ' + item + ', ' for item in sample_room_name_with_mismatch]
-    sample_to_room_with_mismatch = ['To Room: ' + item + ', ' for item in sample_to_room_with_mismatch]
-    sample_from_room_with_mismatch = ['From Room: ' + item + '.' for item in sample_from_room_with_mismatch]
+def output_statement(sample_door_num_with_mismatch, sample_room_num_with_mismatch, sample_room_name_with_mismatch, sample_to_room_with_mismatch, sample_from_room_with_mismatch, sample_door_Selection_with_mismatch):
+    sample_test_issues = [zip(sample_door_Selection_with_mismatch, sample_door_num_with_mismatch, sample_room_num_with_mismatch, sample_room_name_with_mismatch, sample_to_room_with_mismatch, sample_from_room_with_mismatch)]
     
-    sample_test_issues = [i + j + k + l + m for i,j,k,l,m in zip(sample_door_num_with_mismatch, sample_room_num_with_mismatch, sample_room_name_with_mismatch, sample_to_room_with_mismatch, sample_from_room_with_mismatch)]
     for issues in sample_test_issues:
-        print(issues)
-
+        out.print_table(table_data = issues, title = 'DOOR CHECKING TABLE', columns = ['Element ID','Door Number', 'Room Number', 'Room Name', 'To Room', 'From Room'], formats = ['','','','','','' ])
+        
 ####################################################################################################################
 ################### LIST OF ALL DOOR REQUIREMENTS TO VERIFY ########################################################
 ####################################################################################################################
@@ -917,29 +1066,38 @@ def output_statement(sample_door_num_with_mismatch, sample_room_num_with_mismatc
 from rpw.ui.forms import SelectFromList
 from rpw.utils.coerce import to_category 
 
-userInputcategory = SelectFromList('Select Parameter to Check', ['01.Door Number against Room Number', '02.Multiple Doors in Single Room', '03.Function', '04.Leaf Number', '05.Single/Equal/Unequal Leaves', '06.Leaf Width', '07.Leaf Height', '08.Fire Rating of Doors and against Wall Fire Ratings', '09.Acoustic Rating of Doors and against Wall Acoustic Ratings','10.Leaf Material & Finishes', '11.Frame Material & Finishes', '12.Undercut', '13.Fire Rated/Acoustically Treated Door with Grill' ])
+userInputcategory = SelectFromList('Select Parameter to Check', ['01.Door Number against Room Number & Room Names', '02.Multiple Doors in Single Room', '03.Function', '04.Leaf Number', '05.Single/Equal/Unequal Leaves', '06.Leaf Width', '07.Leaf Height', '08.Fire Rating of Doors and against Wall Fire Ratings', '09.Acoustic Rating of Doors and against Wall Acoustic Ratings','10.Leaf Material & Finishes', '11.Frame Material & Finishes', '12.Undercut', '13.Fire Rated/Acoustically Treated Door with Grill', '14.Leaf Type', '15.Leaf Construction', '16.Frame Elevation', '17.Frame Profile', '18.Saddle Type'])
 userInputcategory = str(userInputcategory)
 
 ####################################################################################################################
 
-if userInputcategory == '01.Door Number against Room Number':
-    
-    print('*'*120)
+if userInputcategory == '01.Door Number against Room Number & Room Names':
+
+    out.print_md('**DOOR ROOM NUMBERS CHECK- PRESENT/MISSING**')
     if len(door_numbers_with_missing_door_room_numbers) == 0:
-        print('Door Room Numbers are present in Revit for all included doors')
+        print('\nDoor Room Numbers are present in the Revit Model for included Doors.')
     else:
-        print('The following doors have missing Door Room Numbers.\nPlease add Room Numbers to the doors.\n')
-        print(door_numbers_with_missing_door_room_numbers)
+        print('\nThe following Doors have missing Door Room Numbers.\nPlease add Room Numbers to the Doors.')
+        missing_door_room_numbers_issues = [zip(door_Selections_with_missing_door_room_numbers, door_numbers_with_missing_door_room_numbers)]
+        for issues in missing_door_room_numbers_issues:
+            out.print_table(table_data = issues, title = 'DOOR CHECKING TABLE', columns = ['Element ID','Door Number'], formats = ['','' ])
+    print('\n ')
+    print('*'*216)
     
-    
-    print('*'*120)
+    out.print_md('**DOOR ROOM NAMES CHECK- PRESENT/MISSING**')
     if len(door_numbers_with_missing_door_room_names) == 0:
-        print('Door Room Names are present in Revit for all included doors.')
+        print('\nDoor Room Names are present in Revit for all included Doors.')
+        print('\n ')
     else:
-        print("The following doors have missing Door Room Names.\nPlease add Room Names to the doors.\n")
-        print(door_numbers_with_missing_door_room_names)
-
-
+        print('\nThe following Doors have missing Door Room Names.\nPlease add Room Names to the Doors. ')
+        missing_door_room_names_issues = [zip(door_Selections_with_missing_door_room_names, door_numbers_with_missing_door_room_names)]
+        for issues in missing_door_room_names_issues:
+            out.print_table(table_data = issues, title = 'DOOR CHECKING TABLE', columns = ['Element ID','Door Number'], formats = ['','' ])
+    print('\n ')
+    print('*'*216)
+    
+    #############################################################################################################################################
+    
     # Creating list of alphabets to verify
     test_list = []
     alpha = 'a'
@@ -973,36 +1131,38 @@ if userInputcategory == '01.Door Number against Room Number':
     # print(door_num_without_alpha_list)
     
     # Checking Door Numbers against Room Numbers
-    print('*'*120)
+    
+    out.print_md('**DOOR NUMBERS CHECK AGAINST ROOM NUMBERS- MATCH/MISMATCH**')
     if door_num_without_alpha_list == door_room_numbers:
-       print("All Door numbers match the Room Numbers")
-    
+       print('\nDoor Numbers provided for Doors match the Door Room Numbers. ')
+
     else:
-        print("Door numbers do not match the Room Numbers.\n Please find list below to check in Revit Model-\n")
+        print('\nDoor Numbers provided for Doors do not match the Door Room Numbers.\n Please find table below to check in Revit Model')
+        # Boolean comparision of list of Door numbers against Room numbers
+        bool_list_compare = (list(i[0] == i[1] for i in zip(door_room_numbers, door_num_without_alpha_list)))   
+        # print(bool_list_compare)
     
-    # Boolean comparision of list of Door numbers against Room numbers
-    bool_list_compare = (list(i[0] == i[1] for i in zip(door_room_numbers, door_num_without_alpha_list)))   
-    # print(bool_list_compare)
+        # Index of mismatching Door numbers
+        index_of_failure_door_num = [i for i, x in enumerate(bool_list_compare) if not x]
+        # print(index_of_failure_door_num)
     
-    # Index of mismatching Door numbers
-    index_of_failure_door_num = [i for i, x in enumerate(bool_list_compare) if not x]
-    # print(index_of_failure_door_num)
-    
-    # List of mismatching doors for user
-    door_num_with_mismatch_room_num = [door_numbers[i] for i in index_of_failure_door_num]
-    room_num_with_mismatch_door_num = [door_room_numbers[i] for i in index_of_failure_door_num]
-    room_name_with_mismatch_door_num = [door_room_names[i] for i in index_of_failure_door_num]
-    to_room_name_with_mismatch_door_num = [door_to_room_name_list[i] for i in index_of_failure_door_num]
-    from_room_name_with_mismatch_door_num = [door_from_room_name_list[i] for i in index_of_failure_door_num]
-    
-    # List Output for mismatching Door Numbers aginst Room Numbers
-    door_num_mismatch_issues = output_statement(door_num_with_mismatch_room_num, room_num_with_mismatch_door_num, room_name_with_mismatch_door_num, to_room_name_with_mismatch_door_num, from_room_name_with_mismatch_door_num)
-    print('*'*120)
+        # List of mismatching doors for user
+        door_num_with_mismatch_room_num = [door_numbers[i] for i in index_of_failure_door_num]
+        room_num_with_mismatch_door_num = [door_room_numbers[i] for i in index_of_failure_door_num]
+        room_name_with_mismatch_door_num = [door_room_names[i] for i in index_of_failure_door_num]
+        to_room_name_with_mismatch_door_num = [door_to_room_name_list[i] for i in index_of_failure_door_num]
+        from_room_name_with_mismatch_door_num = [door_from_room_name_list[i] for i in index_of_failure_door_num]
+        door_Selection_with_mismatch_door_num = [door_Selections[i] for i in index_of_failure_door_num]
+        # door_Function_with_mismatch_door_num = 
+        # List Output for mismatching Door Numbers aginst Room Numbers
+        
+        door_num_mismatch_issues = output_statement(door_num_with_mismatch_room_num, room_num_with_mismatch_door_num, room_name_with_mismatch_door_num, to_room_name_with_mismatch_door_num, from_room_name_with_mismatch_door_num, door_Selection_with_mismatch_door_num)
+    print('\n ')
+    print('*'*216)
  
 ####################################################################################################################
 
 elif userInputcategory == '02.Multiple Doors in Single Room':
-
 
     # Creating list of alphabets to verify
     test_list = []
@@ -1125,54 +1285,64 @@ elif userInputcategory == '02.Multiple Doors in Single Room':
     # print(index_of_failure_door_roon_num)
     
     # List of mismatching doors for user
-    room_with_multiple_doors_issues = [door_num_with_occurences[i] for i in index_of_failure_door_room_num]
+    identify_room_num_from_door_with_multiple_doors_issues = [door_num_with_occurences[i] for i in index_of_failure_door_room_num]
+    index_of_room_nums_with_issues = [i for i, x in enumerate(room_numbers) if x in identify_room_num_from_door_with_multiple_doors_issues]
+    rooms_nums_with_multiple_door_issues = [room_numbers[i] for i in index_of_room_nums_with_issues]
+    rooms_with_multiple_door_issues = [rooms[i] for i in index_of_room_nums_with_issues]
+    room_Select_with_multiple_door_issues = [room_Selections[i] for i in index_of_room_nums_with_issues]
     
-    len_of_multi_door_issues_list = len(room_with_multiple_doors_issues)
-    if (len_of_multi_door_issues_list > 0):
-        print("Door number sequencing needs to be checked.\n Please find list of Room numbers assigned to doors below to check in Revit Model-\n")
+    len_of_multi_door_issues_list = len(identify_room_num_from_door_with_multiple_doors_issues )
+    
+    output_for_multiple_door_issues = [zip(room_Select_with_multiple_door_issues, identify_room_num_from_door_with_multiple_doors_issues)] 
+    out.print_md('**DOOR NUMBERING SEQUENCE CHECK- ISSUES/NO ISSUES**')
+    if (len_of_multi_door_issues_list == 0):
+        print("\nDoor Number sequencing for the Rooms in Model have no issues")
     else:
-        print("Door number sequencing has no issues")
-    print(room_with_multiple_doors_issues)   
-    print('*'*120)
-    
+        print("\nDoor Number sequencing for the following Rooms have issues.\n Please find below Room numbers assigned to Doors below to check in Revit Model.")
+        for issues in output_for_multiple_door_issues:
+            out.print_table(table_data = issues, title = 'DOOR CHECKING TABLE', columns = ['Element ID','Room Number'], formats = ['','' ])
+
 ####################################################################################################################
 
 elif userInputcategory == '03.Function':
-    
+    out.print_md('**DOOR ROOM FUNCTIONS CHECK- ASSIGNED/NOT ASSIGNED**')
     if len(doors_with_no_functions_assigned) == 0:
-        print("Door Functions are assigned to all Doors")
+        print("\nDoor Functions are assigned to all Doors")
+
     else:
-        print("Door Functions missing for the following doors\n")
+        print("\nDoor Functions are not assigned for the following doors.")
         door_nums_with_no_functions_assigned = [door_numbers[i] for i in index_for_doors_with_no_functions_assigned]
         door_room_numbers_with_no_function_assigned = [door_room_numbers[i] for i in index_for_doors_with_no_functions_assigned]
         door_room_names_with_no_function_assigned = [door_room_names[i] for i in index_for_doors_with_no_functions_assigned]
         door_to_room_names_with_no_function_assigned = [door_to_room_name_list[i] for i in index_for_doors_with_no_functions_assigned]
         doors_from_room_names_with_no_function_assigned = [door_from_room_name_list[i] for i in index_for_doors_with_no_functions_assigned]
-
+        door_Selections_with_no_function_assigned = [door_Selections[i] for i in index_for_doors_with_no_functions_assigned]
         # List of Doors with missing Functions
-        door_functions_missing = output_statement(door_nums_with_no_functions_assigned, door_room_numbers_with_no_function_assigned, door_room_names_with_no_function_assigned, door_to_room_names_with_no_function_assigned, doors_from_room_names_with_no_function_assigned)
+        door_functions_missing = output_statement(door_nums_with_no_functions_assigned, door_room_numbers_with_no_function_assigned, door_room_names_with_no_function_assigned, door_to_room_names_with_no_function_assigned, doors_from_room_names_with_no_function_assigned, door_Selections_with_no_function_assigned )
+    print('\n ')
+    print('*'*216)
     
-    print('*'*120)
-        
+    out.print_md('**DOOR ROOM FUNCTIONS CHECK- VALID/NOT VALID**')    
     if len(doors_with_invalid_functions) == 0:
-        print("Door Functions assigned to doors are valid")
+        print("\nDoor Functions assigned to doors are valid")
     else:
-        print('Door Functions are assigned to the doors but are invalid.\nPlease verify the functions against the Excel\n')
+        print('\nDoor Functions are assigned to the doors but are invalid.\nPlease verify the Functions for the Doors in the table below, against the Door Template for the project. ')
         door_numbers_with_invalid_functions = [door_numbers_with_functions[i] for i in index_of_invalid_door_functions]
         door_room_numbers_with_invalid_functions = [door_room_numbers_with_functions[i] for i in index_of_invalid_door_functions]
         door_room_names_with_invalid_functions = [door_room_names_with_functions[i] for i in index_of_invalid_door_functions]
         door_to_room_names_with_invalid_functions = [door_to_room_names_with_functions[i] for i in index_of_invalid_door_functions]
         door_from_room_names_with_invalid_functions = [door_from_room_names_with_functions[i] for i in index_of_invalid_door_functions]
+        door_Selections_with_invalid_functions = [door_Selections[i] for i in index_of_invalid_door_functions]
         
         # List of Doors with invalid Functions
-        door_functions_invalid = output_statement(door_numbers_with_invalid_functions,door_room_numbers_with_invalid_functions, door_room_names_with_invalid_functions, door_to_room_names_with_invalid_functions, door_from_room_names_with_invalid_functions )
-
-    print('*'*120)
+        door_functions_invalid = output_statement(door_numbers_with_invalid_functions,door_room_numbers_with_invalid_functions, door_room_names_with_invalid_functions, door_to_room_names_with_invalid_functions, door_from_room_names_with_invalid_functions,door_Selections_with_invalid_functions)
+    print('\n ')
+    print('*'*216)
     
 ####################################################################################################################
 
 elif userInputcategory == '04.Leaf Number':
- 
+    out.print_md('**DOOR LEAF NUMBER CHECK- ASSIGNED/NOT ASSIGNED**')
     filter_doors_with_leaf_number_param_fail = doors_with_family_param_failure(test_for_doors_with_leaves, doors_with_valid_functions,door_numbers_with_valid_functions)
     # print(filter_doors_with_leaf_number_param_pass)
     filtered_doors_leaf_test_fail = filter_doors_with_leaf_number_param_fail[0]
@@ -1180,36 +1350,39 @@ elif userInputcategory == '04.Leaf Number':
     filtered_door_nums_leaf_test_fail = filter_doors_with_leaf_number_param_fail[1]
     # print(filtered_door_nums_leaf_test_fail)
     if len(filtered_door_nums_leaf_test_fail) == 0:
-        print("Doors having valid functions have Leaf Numbers")
+        print("\nDoors having valid Room Functions, have Leaf Numbers assigned to them. ")
     else:
-        print("Leaf Numbers missing from Doors with valid functions\n")
-       
-    print('*'*120)  
-       
+        print("\nDoors having valid Room Functions, have Leaf Numbers unassigned to them. ")
+    print('\n ')   
+    print('*'*216)  
+    
+    out.print_md('**DOOR LEAF NUMBER CHECK- VALID/INVALID**')   
     if len(mismatch_index_for_door_leaf_number) == 0:
-        print("Doors have valid functions and valid leaf numbers")
+        print("\nDoors having valid Room Functions, have valid Leaf numbers. ")
     else:
-        print("Doors have valid functions, but invalid leaf numbers.\nPlease check the following doors\n")
+        print("\nDoors have valid Room functions, but have invalid Leaf numbers.\nPlease verify the Leaf Number for the Doors in the table below, against the Door Template for the project.")
         doors_with_mismatch_leaf_number = [doors_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
         door_numbers_with_mismatch_leaf_number = [door_numbers_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
         door_room_numbers_with_mismatch_leaf_number = [door_room_numbers_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
         door_room_names_with_mismatch_leaf_number = [door_room_names_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
         door_to_room_names_with_mismatch_leaf_number = [door_to_room_names_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
         door_from_room_names_with_mismatch_leaf_number = [door_from_room_names_with_valid_functions[i] for i in mismatch_index_for_door_leaf_number]
+        door_Selections_with_mismatch_leaf_number = [door_Selections[i] for i in mismatch_index_for_door_leaf_number]
         
-        door_leaf_number_mismatch = output_statement(door_numbers_with_mismatch_leaf_number, door_room_numbers_with_mismatch_leaf_number, door_room_names_with_mismatch_leaf_number, door_to_room_names_with_mismatch_leaf_number, door_from_room_names_with_mismatch_leaf_number)
+        door_leaf_number_mismatch = output_statement(door_numbers_with_mismatch_leaf_number, door_room_numbers_with_mismatch_leaf_number, door_room_names_with_mismatch_leaf_number, door_to_room_names_with_mismatch_leaf_number, door_from_room_names_with_mismatch_leaf_number, door_Selections_with_mismatch_leaf_number)
+    print('\n ') 
+    print('*'*216)
     
-    print('*'*120)
 ####################################################################################################################
 
 elif userInputcategory == '05.Single/Equal/Unequal Leaves':
     
     # Double Unequal leaves Failure
-    
+    out.print_md('**DOUBLE DOOR UNEQUAL LEAVES CHECK- VALID/INVALID**')
     if len(mismatch_index_for_door_with_unequal_leaves) == 0:
-        print('Doors with Unequal Leaves have valid Equal/Unequal Values')
+        print('\nDoors with Unequal Leaves have valid (Equal/Unequal Parameter) values assigned as -"FALSE".')
     else:
-        print('Doors with Unequal Leaves have invalid Equal/Unequal Values.\n Please check the following doors.\n')
+        print('\nDoors with Unequal Leaves have invalid (Equal/Unequal Parameter) values assigned as - "TRUE".\nPlease verify the Equal/Unequal Leaves parameter for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_unequal_leaves_invalid =  [ e for i, e in enumerate(double_doors_with_unequal_leaves) if i in set_index_of_mismatch_door_with_unequal_leaves]
         filter_door_numbers_with_unequal_leaves_invalid = [ e for i, e in enumerate(double_door_numbers_with_unequal_leaves) if i in set_index_of_mismatch_door_with_unequal_leaves]
         filter_door_room_numbers_with_unequal_leaves_invalid = shared_parameter_values(filter_doors_with_unequal_leaves_invalid, 'Room_Number')
@@ -1217,17 +1390,19 @@ elif userInputcategory == '05.Single/Equal/Unequal Leaves':
         filter_door_to_from_room_names_with_unequal_leaves_invalid = troom_froom_name_for_doors(filter_doors_with_unequal_leaves_invalid)
         filter_door_to_room_names_with_unequal_leaves_invalid = filter_door_to_from_room_names_with_unequal_leaves_invalid[0]
         filter_door_from_room_names_with_unequal_leaves_invalid = filter_door_to_from_room_names_with_unequal_leaves_invalid[1]
+        filter_door_Selections_with_unequal_leaves_invalid = [out.linkify(door.Id) for door in filter_doors_with_unequal_leaves_invalid]
         
-        double_door_unequal_mismatch = output_statement(filter_door_numbers_with_unequal_leaves_invalid, filter_door_room_numbers_with_unequal_leaves_invalid, filter_door_room_names_with_unequal_leaves_invalid, filter_door_to_room_names_with_unequal_leaves_invalid, filter_door_from_room_names_with_unequal_leaves_invalid )
-    
-    print('*'*120)
+             
+        double_door_unequal_mismatch = output_statement(filter_door_numbers_with_unequal_leaves_invalid, filter_door_room_numbers_with_unequal_leaves_invalid, filter_door_room_names_with_unequal_leaves_invalid, filter_door_to_room_names_with_unequal_leaves_invalid, filter_door_from_room_names_with_unequal_leaves_invalid, filter_door_Selections_with_unequal_leaves_invalid )
+    print('\n ')
+    print('*'*216)
         
     # Double Equal Leaves Failure
-    
+    out.print_md('**DOUBLE DOOR EQUAL LEAVES CHECK- VALID/INVALID**')
     if len(mismatch_index_for_door_with_equal_leaves) == 0:
-        print('Doors with Double Equal Leaves have valid Equal/Unequal Values')
+        print('\nDoors with Double Equal Leaves have valid (Equal/Unequal Parameter) values as- "TRUE". ')
     else:
-        print('Doors with Double Equal Leaves have invalid Equal/Unequal Values.\nPlease check the following doors.\n')
+        print('\nDoors with Double Equal Leaves have invalid (Equal/Unequal Parameter) values assigned as - "FALSE".\nPlease verify the Equal/Unequal Leaves parameter for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_equal_leaves_invalid =  [ e for i, e in enumerate(double_doors_with_equal_leaves) if i in set_index_of_mismatch_door_with_equal_leaves]
         filter_door_numbers_with_equal_leaves_invalid = [ e for i, e in enumerate(double_door_numbers_with_equal_leaves) if i in set_index_of_mismatch_door_with_equal_leaves]
         filter_door_room_numbers_with_equal_leaves_invalid = shared_parameter_values(filter_doors_with_equal_leaves_invalid, 'Room_Number')
@@ -1235,17 +1410,18 @@ elif userInputcategory == '05.Single/Equal/Unequal Leaves':
         filter_door_to_from_room_names_with_equal_leaves_invalid = troom_froom_name_for_doors(filter_doors_with_equal_leaves_invalid)
         filter_door_to_room_names_with_equal_leaves_invalid = filter_door_to_from_room_names_with_equal_leaves_invalid[0]
         filter_door_from_room_names_with_equal_leaves_invalid = filter_door_to_from_room_names_with_equal_leaves_invalid[1]
+        filter_door_Selections_with_equal_leaves_invalid = [out.linkify(door.Id) for door in filter_doors_with_equal_leaves_invalid]
         
-        double_door_equal_mismatch = output_statement(filter_door_numbers_with_equal_leaves_invalid, filter_door_room_numbers_with_equal_leaves_invalid, filter_door_room_names_with_equal_leaves_invalid, filter_door_to_room_names_with_equal_leaves_invalid, filter_door_from_room_names_with_equal_leaves_invalid )
-     
-    print('*'*120)
+        double_door_equal_mismatch = output_statement(filter_door_numbers_with_equal_leaves_invalid, filter_door_room_numbers_with_equal_leaves_invalid, filter_door_room_names_with_equal_leaves_invalid, filter_door_to_room_names_with_equal_leaves_invalid, filter_door_from_room_names_with_equal_leaves_invalid, filter_door_Selections_with_equal_leaves_invalid )
+    print('\n ')
+    print('*'*216)
         
     # Single Equal Leaves Failure
-    
+    out.print_md('**SINGLE DOOR LEAF CHECK- VALID/INVALID**')
     if len(mismatch_index_for_door_with_single_equal_unequal_leaf) == 0:
-        print('Doors with Single Leaf have valid Equal/Unequal Values')
+        print('\nDoors with Single Leaf have valid (Equal/Unequal Parameter) values as- "TRUE". ')
     else:
-        print('Doors with Single Leaf have invalid Equal/Unequal Values.\nPlease check the following doors.\n')
+        print('\nDoors with Single Leaf have invalid (Equal/Unequal Parameter) values assigned as - "FALSE".\nPlease verify the Equal/Unequal Leaves parameter for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_single_leaf_invalid = [ e for i, e in enumerate(doors_with_single_leaf) if i in set_index_of_mismatch_door_with_single_equal_unequal_leaf]
         filter_door_numbers_with_single_leaf_invalid = [ e for i, e in enumerate(door_numbers_with_single_leaf) if i in set_index_of_mismatch_door_with_single_equal_unequal_leaf]
         filter_door_room_numbers_with_single_leaf_invalid = shared_parameter_values(filter_doors_with_single_leaf_invalid, 'Room_Number')
@@ -1253,21 +1429,22 @@ elif userInputcategory == '05.Single/Equal/Unequal Leaves':
         filter_door_to_from_room_names_with_single_leaf_invalid = troom_froom_name_for_doors(filter_doors_with_single_leaf_invalid)
         filter_door_to_room_names_with_single_leaf_invalid = filter_door_to_from_room_names_with_single_leaf_invalid[0]
         filter_door_from_room_names_with_single_leaf_invalid = filter_door_to_from_room_names_with_single_leaf_invalid[1]        
+        filter_door_Selections_with_single_leaf_invalid = [out.linkify(door.Id) for door in filter_doors_with_single_leaf_invalid]
     
-        single_door_equal_mismatch = output_statement(filter_door_numbers_with_single_leaf_invalid, filter_door_room_numbers_with_single_leaf_invalid, filter_door_room_names_with_single_leaf_invalid, filter_door_to_room_names_with_single_leaf_invalid, filter_door_from_room_names_with_single_leaf_invalid )
-    
-    print('*'*120)    
+        single_door_equal_mismatch = output_statement(filter_door_numbers_with_single_leaf_invalid, filter_door_room_numbers_with_single_leaf_invalid, filter_door_room_names_with_single_leaf_invalid, filter_door_to_room_names_with_single_leaf_invalid, filter_door_from_room_names_with_single_leaf_invalid, filter_door_Selections_with_single_leaf_invalid )
+    print('\n ')
+    print('*'*216)    
                 
 ####################################################################################################################
 
 elif userInputcategory == '06.Leaf Width':
     
     # Single Door Widths
-    
+    out.print_md('**SINGLE DOOR LEAF WIDTH CHECK- VALID/INVALID**')
     if len(test_index_for_single_doors_width ) == 0:
-        print('Door Widths for Single Leaf match the Design Requirements')
+        print('\nLeaf Width for Single Leaf Doors match the Design Requirements.')
     else:
-        print('Door Widths for Single Leaf does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nLeaf Widths for Single Leaf Doors do not match the Design Requirements.\nPlease verify the Leaf Width for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_single_leaf_width_invalid = [e for i, e in enumerate(doors_with_valid_single_equal_leaf) if i in set_index_of_mismatch_doors_with_single_leaf_width]
         filter_door_numbers_with_single_leaf_width_invalid = [e for i, e in enumerate(door_numbers_with_valid_single_equal_leaf) if i in set_index_of_mismatch_doors_with_single_leaf_width]
         filter_door_room_numbers_with_single_leaf_width_invalid = shared_parameter_values(filter_doors_with_single_leaf_width_invalid, 'Room_Number')
@@ -1275,17 +1452,18 @@ elif userInputcategory == '06.Leaf Width':
         filter_door_to_from_room_names_with_single_leaf_width_invalid = troom_froom_name_for_doors(filter_doors_with_single_leaf_width_invalid)
         filter_door_to_room_names_with_single_leaf_width_invalid = filter_door_to_from_room_names_with_single_leaf_width_invalid[0]
         filter_door_from_room_names_with_single_leaf_width_invalid = filter_door_to_from_room_names_with_single_leaf_width_invalid[1]
+        filter_door_Selections_with_single_leaf_width_invalid = [out.linkify(door.Id) for door in filter_doors_with_single_leaf_width_invalid]
         
-        single_doors_leaf_width_invalid = output_statement(filter_door_numbers_with_single_leaf_width_invalid ,filter_door_room_numbers_with_single_leaf_width_invalid, filter_door_room_names_with_single_leaf_width_invalid, filter_door_to_room_names_with_single_leaf_width_invalid, filter_door_from_room_names_with_single_leaf_width_invalid )
-
-    print('*'*120)
+        single_doors_leaf_width_invalid = output_statement(filter_door_numbers_with_single_leaf_width_invalid ,filter_door_room_numbers_with_single_leaf_width_invalid, filter_door_room_names_with_single_leaf_width_invalid, filter_door_to_room_names_with_single_leaf_width_invalid, filter_door_from_room_names_with_single_leaf_width_invalid, filter_door_Selections_with_single_leaf_width_invalid )
+    print('\n ')
+    print('*'*216)
     
     # Double Door Widths
-    
+    out.print_md('**DOUBLE EQUAL LEAVES DOOR LEAF WIDTH CHECK- VALID/INVALID**')
     if len(test_index_for_double_equal_doors_width) == 0:
-        print('Door Widths for Double Equal Leaf Doors match the Design Requirements')
+        print('\nLeaf Width for Double Equal Leaves Doors match the Design Requirements.')
     else:
-        print('Door Widths for Double Equal Leaf Doors does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nLeaf Widths for Double Equal Leaves Doors do not match the Design Requirements.\nPlease verify the Leaf Width for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_double_equal_leaves_width_invalid = [e for i, e in enumerate(doors_with_valid_equal_leaves) if i in set_index_of_mismatch_doors_with_double_equal_leaves_width]
         filter_door_numbers_with_double_equal_leaves_width_invalid = [e for i, e in enumerate(door_numbers_with_valid_equal_leaves) if i in set_index_of_mismatch_doors_with_double_equal_leaves_width]
         filter_door_room_numbers_with_double_equal_leaves_width_invalid = shared_parameter_values(filter_doors_with_double_equal_leaves_width_invalid, 'Room_Number')
@@ -1293,58 +1471,60 @@ elif userInputcategory == '06.Leaf Width':
         filter_door_to_from_room_names_with_double_equal_leaves_width_invalid = troom_froom_name_for_doors(filter_doors_with_double_equal_leaves_width_invalid)
         filter_door_to_room_names_with_double_equal_leaves_width_invalid = filter_door_to_from_room_names_with_double_equal_leaves_width_invalid[0]
         filter_door_from_room_names_with_double_equal_leaves_width_invalid = filter_door_to_from_room_names_with_double_equal_leaves_width_invalid[1]
+        filter_door_Selections_with_double_equal_leaves_width_invalid = [out.linkify(door.Id) for door in filter_doors_with_double_equal_leaves_width_invalid]
      
-        double_equal_leaves_door_width_invalid =  output_statement(filter_door_numbers_with_double_equal_leaves_width_invalid ,filter_door_room_numbers_with_double_equal_leaves_width_invalid, filter_door_room_names_with_double_equal_leaves_width_invalid, filter_door_to_room_names_with_double_equal_leaves_width_invalid, filter_door_from_room_names_with_double_equal_leaves_width_invalid )
-     
-    print('*'*120)
+        double_equal_leaves_door_width_invalid =  output_statement(filter_door_numbers_with_double_equal_leaves_width_invalid ,filter_door_room_numbers_with_double_equal_leaves_width_invalid, filter_door_room_names_with_double_equal_leaves_width_invalid, filter_door_to_room_names_with_double_equal_leaves_width_invalid, filter_door_from_room_names_with_double_equal_leaves_width_invalid, filter_door_Selections_with_double_equal_leaves_width_invalid )
+    print('\n ') 
+    print('*'*216)
      
     # Double Door Unequal - Main Panel Widths
-        
+    out.print_md('**DOUBLE UNEQUAL LEAVES DOOR MAIN PANEL LEAF WIDTH CHECK- VALID/INVALID**')    
     if len(test_index_for_double_unequal_doors_main_panel_width) == 0:
-        print('Door Main Panel Widths for Double Unequal Leaves match the Design Requirements')
+        print('\nMain Panel Leaf Width for Double Unequal Leaf Doors match the Design Requirements.')
     else:
-        print('Door Widths for Main Panel for Double Unequal Doors does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nMain Panel Leaf Widths for Double Unequal Leaf Doors do not match the Design Requirements.\nPlease verify the Main Panel Width for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_unequal_leaves_main_panel_width_invalid = [e for i, e in enumerate(doors_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_unequal_main_panel_width]
         filter_door_numbers_with_unequal_leaves_main_panel_width_invalid = [e for i, e in enumerate(door_numbers_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_unequal_main_panel_width]
         filter_door_room_numbers_with_unequal_leaves_main_panel_width_invalid= shared_parameter_values(filter_doors_with_unequal_leaves_main_panel_width_invalid, 'Room_Number')
         filter_door_room_names_with_unequal_leaves_main_panel_width_invalid = shared_parameter_values(filter_doors_with_unequal_leaves_main_panel_width_invalid, 'Room_Name')
         filter_door_to_from_room_names_with_unequal_leaves_main_panel_width_invalid = troom_froom_name_for_doors(filter_doors_with_unequal_leaves_main_panel_width_invalid)
         filter_door_to_room_names_with_unequal_leaves_main_panel_width_invalid = filter_door_to_from_room_names_with_unequal_leaves_main_panel_width_invalid[0]
-        filter_door_from_room_names_with_unequal_leaves_main_panel_width_invalid= filter_door_to_from_room_names_with_unequal_leaves_main_panel_width_invalid[1]
+        filter_door_from_room_names_with_unequal_leaves_main_panel_width_invalid = filter_door_to_from_room_names_with_unequal_leaves_main_panel_width_invalid[1]
+        filter_door_Selections_with_unequal_leaves_main_panel_widths_invalid = [out.linkify(door.Id) for door in filter_doors_with_unequal_leaves_main_panel_width_invalid]
         
-        unequal_doors_main_width_invalid = output_statement(filter_door_numbers_with_unequal_leaves_main_panel_width_invalid ,filter_door_room_numbers_with_unequal_leaves_main_panel_width_invalid, filter_door_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_to_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_from_room_names_with_unequal_leaves_main_panel_width_invalid )
-
-    print('*'*120)
+        unequal_doors_main_width_invalid = output_statement(filter_door_numbers_with_unequal_leaves_main_panel_width_invalid ,filter_door_room_numbers_with_unequal_leaves_main_panel_width_invalid, filter_door_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_to_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_from_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_Selections_with_unequal_leaves_main_panel_widths_invalid )
+    print('\n ')
+    print('*'*216)
     
     # Double Door Unequal - Side Panel Widths
-        
+    out.print_md('**DOUBLE UNEQUAL LEAVES DOOR SIDE PANEL LEAF WIDTH CHECK- VALID/INVALID**')      
     if len(test_index_for_double_unequal_doors_side_panel_width) == 0:
-        print('Door Side Panel Widths for Double Unequal Leaves match the Design Requirements')
+        print('\nSide Panel Leaf Width for Double Unequal Leaf Doors match the Design Requirements.')
     else:
-        print('Door Widths for Side Panel for Double Unequal Doors does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nSide Panel Leaf Widths for Double Unequal Leaf Doors do not match the Design Requirements.\nPlease verify the Main Panel Width for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_unequal_leaves_side_panel_width_invalid = [e for i, e in enumerate(doors_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_unequal_side_panel_width]
         filter_door_numbers_with_unequal_leaves_side_panel_width_invalid = [e for i, e in enumerate(door_numbers_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_unequal_side_panel_width]
         filter_door_room_numbers_with_unequal_leaves_side_panel_width_invalid= shared_parameter_values(filter_doors_with_unequal_leaves_side_panel_width_invalid, 'Room_Number')
         filter_door_room_names_with_unequal_leaves_side_panel_width_invalid = shared_parameter_values(filter_doors_with_unequal_leaves_side_panel_width_invalid, 'Room_Name')
         filter_door_to_from_room_names_with_unequal_leaves_side_panel_width_invalid = troom_froom_name_for_doors(filter_doors_with_unequal_leaves_side_panel_width_invalid)
         filter_door_to_room_names_with_unequal_leaves_side_panel_width_invalid = filter_door_to_from_room_names_with_unequal_leaves_side_panel_width_invalid[0]
-        filter_door_from_room_names_with_unequal_leaves_side_panel_width_invalid= filter_door_to_from_room_names_with_unequal_leaves_side_panel_width_invalid[1]
+        filter_door_from_room_names_with_unequal_leaves_side_panel_width_invalid = filter_door_to_from_room_names_with_unequal_leaves_side_panel_width_invalid[1]
+        filter_door_Selections_with_unequal_leaves_side_panel_widths_invalid = [out.linkify(door.Id) for door in filter_doors_with_unequal_leaves_side_panel_width_invalid]
         
-        unequal_doors_side_width_invalid = output_statement(filter_door_numbers_with_unequal_leaves_side_panel_width_invalid ,filter_door_room_numbers_with_unequal_leaves_side_panel_width_invalid, filter_door_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_to_room_names_with_unequal_leaves_side_panel_width_invalid, filter_door_from_room_names_with_unequal_leaves_side_panel_width_invalid )
-
-    print('*'*120)
+        unequal_doors_side_width_invalid = output_statement(filter_door_numbers_with_unequal_leaves_side_panel_width_invalid ,filter_door_room_numbers_with_unequal_leaves_side_panel_width_invalid, filter_door_room_names_with_unequal_leaves_main_panel_width_invalid, filter_door_to_room_names_with_unequal_leaves_side_panel_width_invalid, filter_door_from_room_names_with_unequal_leaves_side_panel_width_invalid, filter_door_Selections_with_unequal_leaves_side_panel_widths_invalid  )
+    print('\n ')
+    print('*'*216)
 
 ####################################################################################################################
 
 elif userInputcategory == '07.Leaf Height':
-    
-    
+       
     # Single Door Heights
-    
+    out.print_md('**SINGLE DOOR LEAF HEIGHT CHECK- VALID/INVALID**')   
     if len(test_index_for_single_doors_height) == 0:
-        print('Door Heights for Single Leaf match the Design Requirements')
+        print('\nLeaf Height for Single Leaf Doors match the Design Requirements.')
     else:
-        print('Door Heights for Single Leaf does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nLeaf Height for Single Leaf Doors do not match the Design Requirements.\nPlease verify the Leaf Height for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_single_leaf_height_invalid = [e for i, e in enumerate(doors_with_valid_single_equal_leaf) if i in set_index_of_mismatch_doors_with_single_leaf_height]
         filter_door_numbers_with_single_leaf_height_invalid = [e for i, e in enumerate(door_numbers_with_valid_single_equal_leaf) if i in set_index_of_mismatch_doors_with_single_leaf_height]
         filter_door_room_numbers_with_single_leaf_height_invalid = shared_parameter_values(filter_doors_with_single_leaf_height_invalid, 'Room_Number')
@@ -1352,17 +1532,18 @@ elif userInputcategory == '07.Leaf Height':
         filter_door_to_from_room_names_with_single_leaf_height_invalid = troom_froom_name_for_doors(filter_doors_with_single_leaf_height_invalid)
         filter_door_to_room_names_with_single_leaf_height_invalid = filter_door_to_from_room_names_with_single_leaf_height_invalid[0]
         filter_door_from_room_names_with_single_leaf_height_invalid = filter_door_to_from_room_names_with_single_leaf_height_invalid[1]
-        
-        single_doors_leaf_height_invalid = output_statement(filter_door_numbers_with_single_leaf_height_invalid ,filter_door_room_numbers_with_single_leaf_height_invalid, filter_door_room_names_with_single_leaf_height_invalid, filter_door_to_room_names_with_single_leaf_height_invalid, filter_door_from_room_names_with_single_leaf_height_invalid )
-
-    print('*'*120)
+        filter_door_Selections_with_single_leaf_height_invalid = [out.linkify(door.Id) for door in filter_doors_with_single_leaf_height_invalid]
+     
+        single_doors_leaf_height_invalid = output_statement(filter_door_numbers_with_single_leaf_height_invalid ,filter_door_room_numbers_with_single_leaf_height_invalid, filter_door_room_names_with_single_leaf_height_invalid, filter_door_to_room_names_with_single_leaf_height_invalid, filter_door_from_room_names_with_single_leaf_height_invalid, filter_door_Selections_with_single_leaf_height_invalid  )
+    print('\n ')
+    print('*'*216)
     
-    # Double Door Heights
-    
+    # Double Equal Leaf Door Heights
+    out.print_md('**DOUBLE EQUAL LEAVES DOOR LEAF HEIGHT CHECK- VALID/INVALID**')  
     if len(test_index_for_double_equal_doors_height) == 0:
-        print('Door Heights for Double Equal Leaf Doors match the Design Requirements')
+        print('\nLeaf Height for Double Equal Leaf Doors match the Design Requirements.')
     else:
-        print('Door Heights for Double Equal Leaf Doors does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nLeaf Height for Double Equal Leaf Doors do not match the Design Requirements.\nPlease verify the Leaf Height for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_double_equal_leaves_height_invalid = [e for i, e in enumerate(doors_with_valid_equal_leaves) if i in set_index_of_mismatch_doors_with_double_equal_leaves_height]
         filter_door_numbers_with_double_equal_leaves_height_invalid = [e for i, e in enumerate(door_numbers_with_valid_equal_leaves) if i in set_index_of_mismatch_doors_with_double_equal_leaves_height]
         filter_door_room_numbers_with_double_equal_leaves_height_invalid = shared_parameter_values(filter_doors_with_double_equal_leaves_height_invalid, 'Room_Number')
@@ -1370,15 +1551,18 @@ elif userInputcategory == '07.Leaf Height':
         filter_door_to_from_room_names_with_double_equal_leaves_height_invalid = troom_froom_name_for_doors(filter_doors_with_double_equal_leaves_height_invalid)
         filter_door_to_room_names_with_double_equal_leaves_height_invalid = filter_door_to_from_room_names_with_double_equal_leaves_height_invalid[0]
         filter_door_from_room_names_with_double_equal_leaves_height_invalid = filter_door_to_from_room_names_with_double_equal_leaves_height_invalid[1]
+        filter_door_Selections_with_double_equal_leaves_height_invalid = [out.linkify(door.Id) for door in filter_doors_with_double_equal_leaves_height_invalid ]
      
-        double_equal_leaves_door_height_invalid =  output_statement(filter_door_numbers_with_double_equal_leaves_height_invalid ,filter_door_room_numbers_with_double_equal_leaves_height_invalid, filter_door_room_names_with_double_equal_leaves_height_invalid, filter_door_to_room_names_with_double_equal_leaves_height_invalid, filter_door_from_room_names_with_double_equal_leaves_height_invalid )
-     
-    print('*'*120)
+        double_equal_leaves_door_height_invalid =  output_statement(filter_door_numbers_with_double_equal_leaves_height_invalid ,filter_door_room_numbers_with_double_equal_leaves_height_invalid, filter_door_room_names_with_double_equal_leaves_height_invalid, filter_door_to_room_names_with_double_equal_leaves_height_invalid, filter_door_from_room_names_with_double_equal_leaves_height_invalid, filter_door_Selections_with_double_equal_leaves_height_invalid )
+    print('\n ') 
+    print('*'*216)
 
+    # Double Unequal Leaf Door Heights
+    out.print_md('**DOUBLE UNEQUAL LEAVES DOOR LEAF HEIGHT CHECK- VALID/INVALID**')  
     if len(test_index_for_double_unequal_doors_height) == 0:
-        print('Door Heights for Double Unequal Leaf Doors match the Design Requirements')
+        print('\nLeaf Height for Double Unqual Leaf Doors match the Design Requirements.')
     else:
-        print('Door Heights for Double Unequal Leaf Doors does not match the Design Requirements.\nPlease check the following doors.\n')
+        print('\nLeaf Height for Double Unequal Leaf Doors do not match the Design Requirements.\nPlease verify the Leaf Height for the Doors in the table below, against the Door Template for the project.')
         filter_doors_with_double_unequal_leaves_height_invalid = [e for i, e in enumerate(doors_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_double_unequal_leaves_height]
         filter_door_numbers_with_double_unequal_leaves_height_invalid = [e for i, e in enumerate(door_numbers_with_valid_unequal_leaves) if i in set_index_of_mismatch_doors_with_double_unequal_leaves_height]
         filter_door_room_numbers_with_double_unequal_leaves_height_invalid = shared_parameter_values(filter_doors_with_double_unequal_leaves_height_invalid, 'Room_Number')
@@ -1386,235 +1570,262 @@ elif userInputcategory == '07.Leaf Height':
         filter_door_to_from_room_names_with_double_unequal_leaves_height_invalid = troom_froom_name_for_doors(filter_doors_with_double_unequal_leaves_height_invalid)
         filter_door_to_room_names_with_double_unequal_leaves_height_invalid = filter_door_to_from_room_names_with_double_unequal_leaves_height_invalid[0]
         filter_door_from_room_names_with_double_unequal_leaves_height_invalid = filter_door_to_from_room_names_with_double_unequal_leaves_height_invalid[1]
+        filter_door_Selections_with_double_unequal_leaves_height_invalid = [out.linkify(door.Id) for door in filter_doors_with_double_unequal_leaves_height_invalid]
      
-        double_unequal_leaves_door_height_invalid =  output_statement(filter_door_numbers_with_double_unequal_leaves_height_invalid ,filter_door_room_numbers_with_double_unequal_leaves_height_invalid, filter_door_room_names_with_double_unequal_leaves_height_invalid, filter_door_to_room_names_with_double_unequal_leaves_height_invalid, filter_door_from_room_names_with_double_unequal_leaves_height_invalid )
-    
-    print('*'*120)
+        double_unequal_leaves_door_height_invalid =  output_statement(filter_door_numbers_with_double_unequal_leaves_height_invalid ,filter_door_room_numbers_with_double_unequal_leaves_height_invalid, filter_door_room_names_with_double_unequal_leaves_height_invalid, filter_door_to_room_names_with_double_unequal_leaves_height_invalid, filter_door_from_room_names_with_double_unequal_leaves_height_invalid, filter_door_Selections_with_double_unequal_leaves_height_invalid )
+    print('\n ')
+    print('*'*216)
 
 ####################################################################################################################
 
 elif userInputcategory == '08.Fire Rating of Doors and against Wall Fire Ratings':
+    out.print_md('**DOOR FIRE RATING CHECK- ASSIGNED/NOT ASSIGNED**')  
     if len(doors_with_no_fire_rating_assigned) == 0:
-        print('All Doors have been Fire Rated')
+        print('\nFire Rating has been assigned to all Doors. ')
     else:
-        print('The following Doors have no Fire Rating assigned.\nPlease add "0" in case of Doors with no Fire Rating.\n')
+        print('\nFire Rating for the following Doors have not been assigned.\nPlease add "0" in case of Doors with no Fire Rating, for the Doors in the table below. ')
         door_numbers_with_no_fire_rating_assigned = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_no_fire_rating_assigned]
         door_room_numbers_with_no_fire_rating_assigned = [door_room_numbers_with_valid_functions[i] for i in index_for_doors_with_no_fire_rating_assigned]
         door_room_names_with_no_fire_rating_assigned = [door_room_names_with_valid_functions[i] for i in index_for_doors_with_no_fire_rating_assigned]
         door_to_room_names_with_no_fire_rating_assigned = [door_to_room_names_with_valid_functions[i] for i in index_for_doors_with_no_fire_rating_assigned]
         door_from_room_names_with_no_fire_rating_assigned = [door_from_room_names_with_valid_functions[i] for i in index_for_doors_with_no_fire_rating_assigned]
-
-        doors_with_no_fire_rating_assigned = output_statement(door_numbers_with_no_fire_rating_assigned, door_room_numbers_with_no_fire_rating_assigned, door_room_names_with_no_fire_rating_assigned, door_to_room_names_with_no_fire_rating_assigned, door_from_room_names_with_no_fire_rating_assigned )    
+        door_Selections_with_no_fire_rating_assigned = [out.linkify(door.Id) for door in doors_with_no_fire_rating_assigned]
+        
+        doors_with_no_fire_rating_assigned = output_statement(door_numbers_with_no_fire_rating_assigned, door_room_numbers_with_no_fire_rating_assigned, door_room_names_with_no_fire_rating_assigned, door_to_room_names_with_no_fire_rating_assigned, door_from_room_names_with_no_fire_rating_assigned, door_Selections_with_no_fire_rating_assigned)    
+    print('\n ')
+    print('*'*216)
     
-    print('*'*120)
-    
+    out.print_md('**DOOR FIRE RATING CHECK- VALID/INVALID**')  
     if len(doors_with_invalid_fire_rating) == 0:
-        print("All Doors with Fire Rating have valid Fire Rating values.")
+        print("\nFire Rating assigned to the Doors are valid and as per Design Requirements.")
     else:
-        print('The following Doors have invalid Fire Rating assigned.\nPlease check the Fire Ratings for the following doors.\n')
+        print('\nFire Rating assigned to the Doors do not match the Design Requirements.\nPlease verify the Fire Rating for the Doors in the table below, against the Door Template for the project.')
         door_numbers_with_invalid_fire_rating = [e for i, e in enumerate(door_numbers_with_fire_rating) if i in set_index_of_mismatch_door_with_fire_rating]
         door_room_numbers_with_invalid_fire_rating = shared_parameter_values(doors_with_invalid_fire_rating, 'Room_Number')
         door_room_names_with_invalid_fire_rating = shared_parameter_values(doors_with_invalid_fire_rating, 'Room_Name')
         door_to_from_room_names_with_invalid_fire_rating = troom_froom_name_for_doors(doors_with_invalid_fire_rating)
         door_to_room_names_with_invalid_fire_rating = door_to_from_room_names_with_invalid_fire_rating[0]
         door_from_room_names_with_invalid_fire_rating = door_to_from_room_names_with_invalid_fire_rating[1]
+        door_Selections_with_invalid_fire_rating = [out.linkify(door.Id) for door in doors_with_invalid_fire_rating]
         
-        doors_with_invalid_fire_rating_assigned = output_statement(door_numbers_with_invalid_fire_rating, door_room_numbers_with_invalid_fire_rating, door_room_names_with_invalid_fire_rating, door_to_room_names_with_invalid_fire_rating, door_from_room_names_with_invalid_fire_rating)
+        doors_with_invalid_fire_rating_assigned = output_statement(door_numbers_with_invalid_fire_rating, door_room_numbers_with_invalid_fire_rating, door_room_names_with_invalid_fire_rating, door_to_room_names_with_invalid_fire_rating, door_from_room_names_with_invalid_fire_rating, door_Selections_with_invalid_fire_rating)
+    print('\n ')
+    print('*'*216)
     
-    print('*'*120)
-    
+    out.print_md('**WALL FIRE RATING,FOR DOORS WITH FIRE RATING CHECK- ASSIGNED/NOT ASSIGNED**')  
     if len(index_of_fire_rated_doors_with_no_wall_fire_rating) == 0:
-        print("All Doors are placed on Fire Rated Walls")
+        print("\nFire Rating has been assigned to all Walls, for Doors with Fire Rating. ")
     else:
-        print('The following Doors have walls without Fire Rating.\nPlease add "0" in case of Walls/Doors with no Fire Rating for the following Doors.\n')
+        print('\nFire Rating has not been assigned to Walls, for Doors with Fire Rating.\nPlease add Fire Rating to the Walls, on which the following Doors are hosted.\nIn case of Doors with "0" Fire Rating. Please add "0" for the Wall Fire Rating.')
 
         door_numbers_with_fire_rating_but_no_wall_fire_rating  = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_fire_rating_but_no_wall_fire_rating]
         door_room_numbers_with_fire_rating_but_no_wall_fire_rating = shared_parameter_values(doors_with_fire_rating_but_no_wall_fire_rating, 'Room_Number')
-        door_room_names_with_fire_rating_but_no_wall_fire_rating = shared_parameter_values(doors_with_fire_rating_but_no_wall_fire_rating, 'Room_Number')
+        door_room_names_with_fire_rating_but_no_wall_fire_rating = shared_parameter_values(doors_with_fire_rating_but_no_wall_fire_rating, 'Room_Name')
         door_to_from_room_names_with_fire_rating_but_no_wall_fire_rating = troom_froom_name_for_doors(doors_with_fire_rating_but_no_wall_fire_rating)
         door_to_room_names_with_fire_rating_but_no_wall_fire_rating  = door_to_from_room_names_with_fire_rating_but_no_wall_fire_rating [0]
         door_from_room_names_with_fire_rating_but_no_wall_fire_rating  = door_to_from_room_names_with_fire_rating_but_no_wall_fire_rating [1]
-    
-        doors_with_fire_rating_but_no_wall_rating_assigned = output_statement(door_numbers_with_fire_rating_but_no_wall_fire_rating, door_room_numbers_with_fire_rating_but_no_wall_fire_rating, door_room_names_with_fire_rating_but_no_wall_fire_rating, door_to_room_names_with_fire_rating_but_no_wall_fire_rating , door_from_room_names_with_fire_rating_but_no_wall_fire_rating  )
-  
-    print('*'*120)
+        door_Selections_with_invalid_fire_rating_but_no_wall_fire_rating = [out.linkify(door.Id) for door in doors_with_fire_rating_but_no_wall_fire_rating]
         
+        doors_with_fire_rating_but_no_wall_rating_assigned = output_statement(door_numbers_with_fire_rating_but_no_wall_fire_rating, door_room_numbers_with_fire_rating_but_no_wall_fire_rating, door_room_names_with_fire_rating_but_no_wall_fire_rating, door_to_room_names_with_fire_rating_but_no_wall_fire_rating , door_from_room_names_with_fire_rating_but_no_wall_fire_rating, door_Selections_with_invalid_fire_rating_but_no_wall_fire_rating )
+    print('\n ')
+    print('*'*216)
+    
+    out.print_md('**WALL FIRE RATING,FOR DOORS WITH FIRE RATING CHECK- VALID/INVALID**')      
     if len(doors_with_walls_with_invalid_fire_ratings) == 0:
-        print('All Doors have Fire Ratings as per Wall Ratings,i.e. Door Rating = 3/4th of Wall Rating')
+        print('\nFire Rating assigned to Walls, for Doors with Fire Rating are valid. ')
     else:
-        print('The rating of the following doors is not as per Wall Ratings.\nPlease update the following Doors to have Fire ratings 3/4th of Wall Rating.\n')
+        print('\nFire Ratings assigned to Doors are not as per the Wall Fire Ratings and are invalid.\nPlease update the following Doors to have Fire ratings as per the formula below:\n\tDoor Fire Rating = Wall Fire Rating * 0.75.')
         door_numbers_with_walls_with_invalid_fire_ratings = [e for i, e in enumerate(door_numbers_with_fire_rating_and_wall_rating) if i in set_index_of_mismatch_doors_fire_rating_against_wall_ratings]
         door_room_numbers_with_walls_with_invalid_fire_ratings = shared_parameter_values(doors_with_walls_with_invalid_fire_ratings, 'Room_Number')
         door_room_names_with_walls_with_invalid_fire_ratings = shared_parameter_values(doors_with_walls_with_invalid_fire_ratings, 'Room_Name')
         door_to_from_room_names_with_walls_with_invalid_fire_ratings = troom_froom_name_for_doors(doors_with_walls_with_invalid_fire_ratings)
         door_to_room_names_with_walls_with_invalid_fire_ratings = door_to_from_room_names_with_walls_with_invalid_fire_ratings[0]
         door_from_room_names_with_walls_with_invalid_fire_ratings = door_to_from_room_names_with_walls_with_invalid_fire_ratings[1]
+        door_Selections_with_walls_with_invalid_fire_ratings = [out.linkify(door.Id) for door in doors_with_walls_with_invalid_fire_ratings]
         
-        doors_with_fire_rating_but_invalid_wall_fire_rating_assigned = output_statement(door_numbers_with_walls_with_invalid_fire_ratings,door_room_numbers_with_walls_with_invalid_fire_ratings, door_room_names_with_walls_with_invalid_fire_ratings, door_to_room_names_with_walls_with_invalid_fire_ratings, door_from_room_names_with_walls_with_invalid_fire_ratings)
-    
-    print('*'*120)    
+        doors_with_fire_rating_but_invalid_wall_fire_rating_assigned = output_statement(door_numbers_with_walls_with_invalid_fire_ratings,door_room_numbers_with_walls_with_invalid_fire_ratings, door_room_names_with_walls_with_invalid_fire_ratings, door_to_room_names_with_walls_with_invalid_fire_ratings, door_from_room_names_with_walls_with_invalid_fire_ratings, door_Selections_with_walls_with_invalid_fire_ratings)
+    print('\n ')
+    print('*'*216)    
       
 ####################################################################################################################
 
 elif userInputcategory == '09.Acoustic Rating of Doors and against Wall Acoustic Ratings':
-
+    
+    out.print_md('**DOOR ACOUSTIC/STC RATING CHECK- ASSIGNED/NOT ASSIGNED**') 
     if len(doors_with_no_acoustic_rating_assigned) == 0:
-        print('All Doors have been Acoustically Rated')
+        print('\nAcoustic/STC Rating has been assigned to all Doors. ')
     else:
-        print('The following Doors have no Acoustic Rating assigned.\nPlease add "0" in case of Doors with no Acoustic Rating.')
+        print('\nAcoustic/STC Rating for the following Doors have not been assigned.\nPlease add "0" in case of Doors with no Acoustic/STC Rating, for the Doors in the table below. ')
         door_numbers_with_no_acoustic_rating_assigned = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_no_acoustic_rating_assigned]
         door_room_numbers_with_no_acoustic_rating_assigned = [door_room_numbers_with_valid_functions[i] for i in index_for_doors_with_no_acoustic_rating_assigned]
         door_room_names_with_no_acoustic_rating_assigned = [door_room_names_with_valid_functions[i] for i in index_for_doors_with_no_acoustic_rating_assigned]
         door_to_room_names_with_no_acoustic_rating_assigned = [door_to_room_names_with_valid_functions[i] for i in index_for_doors_with_no_acoustic_rating_assigned]
         door_from_room_names_with_no_acoustic_rating_assigned = [door_from_room_names_with_valid_functions[i] for i in index_for_doors_with_no_acoustic_rating_assigned]
-
-        doors_with_no_acoustic_rating_assigned = output_statement(door_numbers_with_no_acoustic_rating_assigned, door_room_numbers_with_no_acoustic_rating_assigned, door_room_names_with_no_acoustic_rating_assigned, door_to_room_names_with_no_acoustic_rating_assigned, door_from_room_names_with_no_acoustic_rating_assigned )    
+        door_Selections_with_no_acoustic_rating_assigned = [out.linkify(door.Id) for door in doors_with_no_acoustic_rating_assigned]
+        
+        doors_with_no_acoustic_rating_assigned = output_statement(door_numbers_with_no_acoustic_rating_assigned, door_room_numbers_with_no_acoustic_rating_assigned, door_room_names_with_no_acoustic_rating_assigned, door_to_room_names_with_no_acoustic_rating_assigned, door_from_room_names_with_no_acoustic_rating_assigned, door_Selections_with_no_acoustic_rating_assigned )    
+    print('\n ')
+    print('*'*216)
     
-    print('*'*120)
-    
+    out.print_md('**DOOR ACOUSTIC/STC RATING CHECK- VALID/INVALID**')  
     if len(doors_with_invalid_acoustic_rating) == 0:
-        print("All Doors with Acoustic Rating have valid Acoustic Rating values.")
+        print("\nAcoustic/STC Rating assigned to the Doors are valid and as per Design Requirements.")
     else:
-        print('The following Doors have invalid Acoustic Rating assigned.\nPlease check the Acoustic Ratings for the following doors')
+        print('\nAcoustic/STC Rating assigned to the Doors do not match the Design Requirements.\nPlease verify the Acoustic/STC Rating for the Doors in the table below, against the Door Template for the project.')
+        
         door_numbers_with_invalid_acoustic_rating = [e for i, e in enumerate(door_numbers_with_acoustic_rating) if i in set_index_of_mismatch_door_with_acoustic_rating]
         door_room_numbers_with_invalid_acoustic_rating = shared_parameter_values(doors_with_invalid_acoustic_rating, 'Room_Number')
         door_room_names_with_invalid_acoustic_rating = shared_parameter_values(doors_with_invalid_acoustic_rating, 'Room_Name')
         door_to_from_room_names_with_invalid_acoustic_rating = troom_froom_name_for_doors(doors_with_invalid_acoustic_rating)
         door_to_room_names_with_invalid_acoustic_rating = door_to_from_room_names_with_invalid_acoustic_rating[0]
         door_from_room_names_with_invalid_acoustic_rating = door_to_from_room_names_with_invalid_acoustic_rating[1]
+        door_Selections_with_invalid_acoustic_rating = [out.linkify(door.Id) for door in doors_with_invalid_acoustic_rating]
         
-        doors_with_invalid_acoustic_rating_assigned = output_statement(door_numbers_with_invalid_acoustic_rating, door_room_numbers_with_invalid_acoustic_rating, door_room_names_with_invalid_acoustic_rating, door_to_room_names_with_invalid_acoustic_rating, door_from_room_names_with_invalid_acoustic_rating)
+        doors_with_invalid_acoustic_rating_assigned = output_statement(door_numbers_with_invalid_acoustic_rating, door_room_numbers_with_invalid_acoustic_rating, door_room_names_with_invalid_acoustic_rating, door_to_room_names_with_invalid_acoustic_rating, door_from_room_names_with_invalid_acoustic_rating, door_Selections_with_invalid_acoustic_rating)
+    print('\n ')
+    print('*'*216)
     
-    print('*'*120)
-    
+    out.print_md('**\nWALL ACOUSTIC/STC RATING,FOR DOORS WITH ACOUSTIC RATING CHECK- ASSIGNED/NOT ASSIGNED**')  
     if len(index_of_acoustic_rated_doors_with_no_wall_acoustic_rating) == 0:
-        print("All Doors are placed on Acoustic Rated Walls")
+        print("\nAcoustic/STC Rating has been assigned to all Walls, for Doors with Acoustic/STC Rating. ")
     else:
-        print('The following Doors have walls without Acoustic Rating.\nPlease add "0" in case of Walls/Doors with no Acoustic Rating for the following Doors.')
+        print('\nAcoustic/STC Rating has not been assigned to Walls, for Doors with Acoustic/STC Rating.\nPlease add Acoustic/STC Rating to the Walls, on which the following Doors are hosted.\nIn case of Doors with "0" Acoustic/STC Rating, Please add "0" for the Wall Acoustic/STC Rating.')
 
         door_numbers_with_acoustic_rating_but_no_wall_acoustic_rating  = [d.get_Parameter(BuiltInParameter.DOOR_NUMBER).AsString() for d in doors_with_acoustic_rating_but_no_wall_acoustic_rating]
         door_room_numbers_with_acoustic_rating_but_no_wall_acoustic_rating = shared_parameter_values(doors_with_acoustic_rating_but_no_wall_acoustic_rating, 'Room_Number')
-        door_room_names_with_acoustic_rating_but_no_wall_acoustic_rating = shared_parameter_values(doors_with_acoustic_rating_but_no_wall_acoustic_rating, 'Room_Number')
+        door_room_names_with_acoustic_rating_but_no_wall_acoustic_rating = shared_parameter_values(doors_with_acoustic_rating_but_no_wall_acoustic_rating, 'Room_Name')
         door_to_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating = troom_froom_name_for_doors(doors_with_acoustic_rating_but_no_wall_acoustic_rating)
         door_to_room_names_with_acoustic_rating_but_no_wall_acoustic_rating  = door_to_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating [0]
         door_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating  = door_to_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating [1]
+        door_Selections_with_acoustic_rating_but_no_wall_acoustic_rating = [out.linkify(door.Id) for door in doors_with_acoustic_rating_but_no_wall_acoustic_rating]
+                
+        doors_with_acoustic_rating_but_no_wall_rating_assigned = output_statement(door_numbers_with_acoustic_rating_but_no_wall_acoustic_rating, door_room_numbers_with_acoustic_rating_but_no_wall_acoustic_rating, door_room_names_with_acoustic_rating_but_no_wall_acoustic_rating, door_to_room_names_with_acoustic_rating_but_no_wall_acoustic_rating , door_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating, door_Selections_with_acoustic_rating_but_no_wall_acoustic_rating )
+    print('\n ')
+    print('*'*216)
     
-        doors_with_acoustic_rating_but_no_wall_rating_assigned = output_statement(door_numbers_with_acoustic_rating_but_no_wall_acoustic_rating, door_room_numbers_with_acoustic_rating_but_no_wall_acoustic_rating, door_room_names_with_acoustic_rating_but_no_wall_acoustic_rating, door_to_room_names_with_acoustic_rating_but_no_wall_acoustic_rating , door_from_room_names_with_acoustic_rating_but_no_wall_acoustic_rating  )
-  
-    print('*'*120)
-        
+    out.print_md('**\nWALL ACOUSTIC/STC RATING,FOR DOORS WITH ACOUSITC RATING CHECK- VALID/INVALID**')     
     if len(doors_with_walls_with_invalid_acoustic_ratings) == 0:
-        print('All Doors have Acoustic Ratings as per Wall Ratings,i.e. Door Rating = (Wall Rating - 20)')
+        print('All Doors have Acoustic Ratings as per Wall Ratings,i.e. Door Rating = (Wall Rating - 15)')
     else:
-        print('The rating of the following doors is not as per Wall Ratings.\nPlease update the following Doors to have Acoustic ratings (Wall Rating - 20)')
+        print('\nAcoustic/STC Ratings assigned to Doors are not as per the Wall Acoustic/STC Ratings and are invalid.\nPlease update the following Doors to have Acoustic ratings as per the formula below:-\n\tDoor Acoustic/STC Rating = Wall Acoustic Rating -15. ')
         door_numbers_with_walls_with_invalid_acoustic_ratings = [e for i, e in enumerate(door_numbers_with_acoustic_rating_and_wall_rating) if i in set_index_of_mismatch_doors_acoustic_rating_against_wall_ratings]
         door_room_numbers_with_walls_with_invalid_acoustic_ratings = shared_parameter_values(doors_with_walls_with_invalid_acoustic_ratings, 'Room_Number')
         door_room_names_with_walls_with_invalid_acoustic_ratings = shared_parameter_values(doors_with_walls_with_invalid_acoustic_ratings, 'Room_Name')
         door_to_from_room_names_with_walls_with_invalid_acoustic_ratings = troom_froom_name_for_doors(doors_with_walls_with_invalid_acoustic_ratings)
         door_to_room_names_with_walls_with_invalid_acoustic_ratings = door_to_from_room_names_with_walls_with_invalid_acoustic_ratings[0]
         door_from_room_names_with_walls_with_invalid_acoustic_ratings = door_to_from_room_names_with_walls_with_invalid_acoustic_ratings[1]
+        door_Selections_with_walls_with_invalid_acoustic_ratings = [out.linkify(door.Id) for door in doors_with_walls_with_invalid_acoustic_ratings]
         
-        doors_with_acoustic_rating_but_invalid_wall_acoustic_rating_assigned = output_statement(door_numbers_with_walls_with_invalid_acoustic_ratings,door_room_numbers_with_walls_with_invalid_acoustic_ratings, door_room_names_with_walls_with_invalid_acoustic_ratings, door_to_room_names_with_walls_with_invalid_acoustic_ratings, door_from_room_names_with_walls_with_invalid_acoustic_ratings)
-    
-    print('*'*120)    
+        doors_with_acoustic_rating_but_invalid_wall_acoustic_rating_assigned = output_statement(door_numbers_with_walls_with_invalid_acoustic_ratings,door_room_numbers_with_walls_with_invalid_acoustic_ratings, door_room_names_with_walls_with_invalid_acoustic_ratings, door_to_room_names_with_walls_with_invalid_acoustic_ratings, door_from_room_names_with_walls_with_invalid_acoustic_ratings, door_Selections_with_walls_with_invalid_acoustic_ratings)
+    print('\n ')
+    print('*'*216)    
 
 ####################################################################################################################
 
 elif userInputcategory == '10.Leaf Material & Finishes':
-        
+    
+    out.print_md('**DOOR LEAF MATERIAL CHECK- VALID/INVALID**')     
     if len(doors_with_invalid_leaf_material) == 0:
-        print('All Doors with valid Functions have valid Leaf Materials')
+        print('\nLeaf Material for Doors with valid Functions are valid and meet the Design Requirements. ')
     else:
-        print('Leaf Material for the following Doors are not as per design criteria.\nPlease update the Leaf Material for the following Doors')
+        print('\nLeaf Material for the following Doors with valid Functions are invalid.\nPlease update the Leaf Material for the following Doors as per Design Requirements. ')
         door_numbers_with_invalid_leaf_material = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_doors_leaf_material]
         door_room_numbers_with_invalid_leaf_material = shared_parameter_values(doors_with_invalid_leaf_material, 'Room_Number')
         door_room_names_with_invalid_leaf_material = shared_parameter_values(doors_with_invalid_leaf_material, 'Room_Name')
         door_to_from_room_names_with_invalid_leaf_material =  troom_froom_name_for_doors(doors_with_invalid_leaf_material)
         door_to_room_names_with_invalid_leaf_material = door_to_from_room_names_with_invalid_leaf_material[0]
         door_from_room_names_with_invalid_leaf_material = door_to_from_room_names_with_invalid_leaf_material[1]
+        door_Selections_with_invalid_leaf_material = [out.linkify(door.Id) for door in doors_with_invalid_leaf_material]
         
-        doors_with_invalid_leaf_material_assigned = output_statement(door_numbers_with_invalid_leaf_material, door_room_numbers_with_invalid_leaf_material, door_room_names_with_invalid_leaf_material, door_to_room_names_with_invalid_leaf_material, door_from_room_names_with_invalid_leaf_material)
-
-    print('*'*120)
+        doors_with_invalid_leaf_material_assigned = output_statement(door_numbers_with_invalid_leaf_material, door_room_numbers_with_invalid_leaf_material, door_room_names_with_invalid_leaf_material, door_to_room_names_with_invalid_leaf_material, door_from_room_names_with_invalid_leaf_material, door_Selections_with_invalid_leaf_material)
+    print('\n ')
+    print('*'*216)
     
+    out.print_md('**DOOR LEAF FINISH CHECK- VALID/INVALID**') 
     if len(doors_with_invalid_leaf_finish) == 0:
-        print('All Doors with valid Functions have valid Leaf Finishes')
+        print('\nLeaf Finishes for Doors with valid Functions are valid and meet the Design Requirements. ')
     else:
-        print('Leaf Finishes for the following Doors are not as per design criteria.\nPlease update the Leaf Finishes for the following Doors')
+        print('\nLeaf Finishes for the following Doors with valid Functions are invalid.\nPlease update the Leaf Finish for the following Doors as per Design Requirements. ')
         door_numbers_with_invalid_leaf_finish = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_doors_leaf_finish]
         door_room_numbers_with_invalid_leaf_finish = shared_parameter_values(doors_with_invalid_leaf_finish, 'Room_Number')
         door_room_names_with_invalid_leaf_finish = shared_parameter_values(doors_with_invalid_leaf_finish, 'Room_Name')
         door_to_from_room_names_with_invalid_leaf_finish =  troom_froom_name_for_doors(doors_with_invalid_leaf_finish)
         door_to_room_names_with_invalid_leaf_finish = door_to_from_room_names_with_invalid_leaf_finish[0]
         door_from_room_names_with_invalid_leaf_finish = door_to_from_room_names_with_invalid_leaf_finish[1]
+        door_Selections_with_invalid_leaf_finish = [out.linkify(door.Id) for door in doors_with_invalid_leaf_finish]
         
-        doors_with_invalid_leaf_finish_assigned = output_statement(door_numbers_with_invalid_leaf_finish, door_room_numbers_with_invalid_leaf_finish, door_room_names_with_invalid_leaf_finish, door_to_room_names_with_invalid_leaf_finish, door_from_room_names_with_invalid_leaf_finish)
-    
-    print('*'*120)
+        doors_with_invalid_leaf_finish_assigned = output_statement(door_numbers_with_invalid_leaf_finish, door_room_numbers_with_invalid_leaf_finish, door_room_names_with_invalid_leaf_finish, door_to_room_names_with_invalid_leaf_finish, door_from_room_names_with_invalid_leaf_finish, door_Selections_with_invalid_leaf_finish)
+    print('\n ')
+    print('*'*216)
 
 ##################################################################################################################
 
 elif userInputcategory == '11.Frame Material & Finishes':
     
-    print('*'*120)    
+    out.print_md('**DOOR FRAME MATERIAL CHECK- VALID/INVALID**')  
     if len(doors_with_invalid_frame_material) == 0:
-        print('All Doors with valid Functions have valid frame Materials')
+        print('\nFrame Material for Doors with valid Functions are valid and meet the Design Requirements. ')
     else:
-        print('Frame Material for the following Doors are not as per design criteria.\nPlease update the frame Material for the following Doors.\n')
+        print('\nFrame Material for the following Doors with valid Functions are invalid.\nPlease update the Frame Material for the following Doors as per Design Requirements. ')
         door_numbers_with_invalid_frame_material = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_doors_frame_material]
         door_room_numbers_with_invalid_frame_material = shared_parameter_values(doors_with_invalid_frame_material, 'Room_Number')
         door_room_names_with_invalid_frame_material = shared_parameter_values(doors_with_invalid_frame_material, 'Room_Name')
         door_to_from_room_names_with_invalid_frame_material =  troom_froom_name_for_doors(doors_with_invalid_frame_material)
         door_to_room_names_with_invalid_frame_material = door_to_from_room_names_with_invalid_frame_material[0]
         door_from_room_names_with_invalid_frame_material = door_to_from_room_names_with_invalid_frame_material[1]
+        door_Selections_with_invalid_frame_material = [out.linkify(door.Id) for door in doors_with_invalid_frame_material]
         
-        doors_with_invalid_frame_material_assigned = output_statement(door_numbers_with_invalid_frame_material, door_room_numbers_with_invalid_frame_material, door_room_names_with_invalid_frame_material, door_to_room_names_with_invalid_frame_material, door_from_room_names_with_invalid_frame_material)
-
-    print('*'*120)
+        doors_with_invalid_frame_material_assigned = output_statement(door_numbers_with_invalid_frame_material, door_room_numbers_with_invalid_frame_material, door_room_names_with_invalid_frame_material, door_to_room_names_with_invalid_frame_material, door_from_room_names_with_invalid_frame_material, door_Selections_with_invalid_frame_material)
+    print('\n ')
+    print('*'*216)
     
+    out.print_md('**DOOR FRAME FINISH CHECK- VALID/INVALID**')
     if len(doors_with_invalid_frame_finish) == 0:
-        print('All Doors with valid Functions have valid frame Finishes.')
+        print('\nFrame Finishes for Doors with valid Functions are valid and meet the Design Requirements. ')
     else:
-        print('Frame Finishes for the following Doors are not as per design criteria.\nPlease update the frame Finishes for the following Doors.\n')
+        print('\nFrame Finishes for the following Doors with valid Functions are invalid.\nPlease update the Leaf Finish for the following Doors as per Design Requirements. ')
         door_numbers_with_invalid_frame_finish = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_doors_frame_finish]
         door_room_numbers_with_invalid_frame_finish = shared_parameter_values(doors_with_invalid_frame_finish, 'Room_Number')
         door_room_names_with_invalid_frame_finish = shared_parameter_values(doors_with_invalid_frame_finish, 'Room_Name')
         door_to_from_room_names_with_invalid_frame_finish =  troom_froom_name_for_doors(doors_with_invalid_frame_finish)
         door_to_room_names_with_invalid_frame_finish = door_to_from_room_names_with_invalid_frame_finish[0]
         door_from_room_names_with_invalid_frame_finish = door_to_from_room_names_with_invalid_frame_finish[1]
+        door_Selections_with_invalid_frame_finish = [out.linkify(door.Id) for door in doors_with_invalid_frame_finish]
         
-        doors_with_invalid_frame_finish_assigned = output_statement(door_numbers_with_invalid_frame_finish, door_room_numbers_with_invalid_frame_finish, door_room_names_with_invalid_frame_finish, door_to_room_names_with_invalid_frame_finish, door_from_room_names_with_invalid_frame_finish)
-    
-    print('*'*120)    
+        doors_with_invalid_frame_finish_assigned = output_statement(door_numbers_with_invalid_frame_finish, door_room_numbers_with_invalid_frame_finish, door_room_names_with_invalid_frame_finish, door_to_room_names_with_invalid_frame_finish, door_from_room_names_with_invalid_frame_finish, door_Selections_with_invalid_frame_finish)
+    print('\n ')       
+    print('*'*216)    
   
 ####################################################################################################################
 
 elif userInputcategory == '12.Undercut':
     
-    print('*'*120)
+    out.print_md('**DOOR UNDERCUT CHECK- VALID/INVALID**') 
     if len(doors_with_invalid_undercut) == 0:
-        print('All Doors with Functions have valid Undercut provided.')
+        print('\nUndercut for Doors with valid Functions are valid and meet the Design Requirements. ')
     else:
-        print('Undercut for the following Doors are not as per design criteria.\n Please update the Undercut requirements for the following doors.\n')
+        print('\nUndercut for the following Doors with valid Functions are invalid.\nPlease update the Undercut for the following Doors as per Design Requirements. ')
         door_numbers_with_invalid_undercut = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_doors_with_undercut]
         door_room_numbers_with_invalid_undercut = shared_parameter_values(doors_with_invalid_undercut, 'Room_Number')
         door_room_names_with_invalid_undercut = shared_parameter_values(doors_with_invalid_undercut, 'Room_Name')
         door_to_from_room_names_with_invalid_undercut =  troom_froom_name_for_doors(doors_with_invalid_undercut)
         door_to_room_names_with_invalid_undercut = door_to_from_room_names_with_invalid_undercut[0]
         door_from_room_names_with_invalid_undercut = door_to_from_room_names_with_invalid_undercut[1]
+        door_Selections_with_invalid_undercut = [out.linkify(door.Id) for door in doors_with_invalid_undercut]
         
-        doors_with_invalid_undercut = output_statement(door_numbers_with_invalid_undercut, door_room_numbers_with_invalid_undercut, door_room_names_with_invalid_undercut, door_to_room_names_with_invalid_undercut, door_from_room_names_with_invalid_undercut )
-    print('*'*120)
+        doors_with_invalid_undercut = output_statement(door_numbers_with_invalid_undercut, door_room_numbers_with_invalid_undercut, door_room_names_with_invalid_undercut, door_to_room_names_with_invalid_undercut, door_from_room_names_with_invalid_undercut, door_Selections_with_invalid_undercut)
+    print('\n ') 
+    print('*'*216)
     
 ####################################################################################################################
 
 elif userInputcategory == '13.Fire Rated/Acoustically Treated Door with Grill':
     
-    print('*'*120)
+    out.print_md('**DOOR GRILLS FOR FIRE RATED DOORS CHECK- ADDED/NOT ADDED**') 
     if len(doors_with_grills_and_fire_rated) == 0:
-        print('All Doors with Grills have not been Fire Rated.')
+        print('\nDoor Grills have not been added, to any Doors with Fire Rating. ')
     else:
-        print('The following Doors, having Grill have Fire rating.\nPlease check the design requirements.')
+        print('\nDoor Grills have been provided to the following Fire Rated Doors.\nPlease check against the Design requirements, if sufficient hardware is being provided to the following Doors.')
               
         door_numbers_with_grills_and_fire_rated = [e for i, e in enumerate(door_numbers_with_grills) if i in index_of_doors_with_fire_rated_grill_doors]
         door_room_numbers_with_grills_and_fire_rated = shared_parameter_values(doors_with_grills_and_fire_rated, 'Room_Number')    
@@ -1622,14 +1833,17 @@ elif userInputcategory == '13.Fire Rated/Acoustically Treated Door with Grill':
         door_to_from_room_names_with_grills_and_fire_rated = troom_froom_name_for_doors(doors_with_grills_and_fire_rated)
         door_to_room_names_with_grills_and_fire_rated = door_to_from_room_names_with_grills_and_fire_rated[0]
         door_from_room_names_with_grills_and_fire_rated = door_to_from_room_names_with_grills_and_fire_rated[1]
+        door_Selections_with_grills_and_fire_rated = [out.linkify(door.Id) for door in doors_with_grills_and_fire_rated]
         
-        doors_with_fire_rating_and_door_grills = output_statement(door_numbers_with_grills_and_fire_rated,  door_room_numbers_with_grills_and_fire_rated, door_room_names_with_grills_and_fire_rated,  door_to_room_names_with_grills_and_fire_rated,  door_from_room_names_with_grills_and_fire_rated)   
-       
-    print('*'*120)
+        doors_with_fire_rating_and_door_grills = output_statement(door_numbers_with_grills_and_fire_rated,  door_room_numbers_with_grills_and_fire_rated, door_room_names_with_grills_and_fire_rated,  door_to_room_names_with_grills_and_fire_rated,  door_from_room_names_with_grills_and_fire_rated, door_Selections_with_grills_and_fire_rated)   
+    print('\n ')  
+    print('*'*216)
+    
+    out.print_md('**DOOR GRILLS FOR ACOUSTIC/STC RATED DOORS CHECK- ADDED/NOT ADDED**') 
     if len(doors_with_grills_and_acoustic_rated) == 0:
-        print('All Doors with Grills have not been Acoustically Rated.')
+        print('\nDoor Grills have not been added, to any Doors with Acoustic/STC Rating. ')
     else:
-        print('The following Doors, having Grill have Acoustic rating.\nPlease check the design requirements.')
+        print('\nDoor Grills have been provided to the following Acoustic/STC Rated Doors.\nPlease check against the Design requirements, if sufficient hardware is being provided to the following Doors.')
               
         door_numbers_with_grills_and_acoustic_rated = [e for i, e in enumerate(door_numbers_with_grills) if i in index_of_doors_with_acoustic_rated_grill_doors]
         door_room_numbers_with_grills_and_acoustic_rated = shared_parameter_values(doors_with_grills_and_acoustic_rated, 'Room_Number')    
@@ -1637,11 +1851,150 @@ elif userInputcategory == '13.Fire Rated/Acoustically Treated Door with Grill':
         door_to_from_room_names_with_grills_and_acoustic_rated = troom_froom_name_for_doors(doors_with_grills_and_acoustic_rated)
         door_to_room_names_with_grills_and_acoustic_rated = door_to_from_room_names_with_grills_and_acoustic_rated[0]
         door_from_room_names_with_grills_and_acoustic_rated = door_to_from_room_names_with_grills_and_acoustic_rated[1]
+        door_Selections_with_grills_and_acoustic_rated = [out.linkify(door.Id) for door in doors_with_grills_and_acoustic_rated]
         
-        doors_with_acoustic_rating_and_door_grills = output_statement(door_numbers_with_grills_and_acoustic_rated,  door_room_numbers_with_grills_and_acoustic_rated, door_room_names_with_grills_and_acoustic_rated,  door_to_room_names_with_grills_and_acoustic_rated,  door_from_room_names_with_grills_and_acoustic_rated)   
-    
-    print('*'*120)
+        doors_with_acoustic_rating_and_door_grills = output_statement(door_numbers_with_grills_and_acoustic_rated,  door_room_numbers_with_grills_and_acoustic_rated, door_room_names_with_grills_and_acoustic_rated,  door_to_room_names_with_grills_and_acoustic_rated,  door_from_room_names_with_grills_and_acoustic_rated, door_Selections_with_grills_and_acoustic_rated)   
+    print('\n ') 
+    print('*'*216)
    
+####################################################################################################################
+
+elif userInputcategory == '14.Leaf Type':
+    
+    out.print_md('**DOOR LEAF TYPE CHECK- VALID/INVALID**')     
+    if len(doors_with_invalid_leaf_type) == 0:
+        print('\nLeaf Type for Doors with valid Functions are valid and meet the Design Requirements. ')
+    else:
+        print('\nLeaf Type for the following Doors with valid Functions are invalid.\nPlease update the Leaf Type for the following Doors as per Design Requirements. ')
+        door_numbers_with_invalid_leaf_type = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_door_leaf_type]
+        door_room_numbers_with_invalid_leaf_type = shared_parameter_values(doors_with_invalid_leaf_type, 'Room_Number')
+        door_room_names_with_invalid_leaf_type = shared_parameter_values(doors_with_invalid_leaf_type, 'Room_Name')
+        door_to_from_room_names_with_invalid_leaf_type =  troom_froom_name_for_doors(doors_with_invalid_leaf_type)
+        door_to_room_names_with_invalid_leaf_type = door_to_from_room_names_with_invalid_leaf_type[0]
+        door_from_room_names_with_invalid_leaf_type = door_to_from_room_names_with_invalid_leaf_type[1]
+        door_Selections_with_invalid_leaf_type = [out.linkify(door.Id) for door in doors_with_invalid_leaf_type]
+        
+        doors_with_invalid_leaf_type_assigned = output_statement(door_numbers_with_invalid_leaf_type, door_room_numbers_with_invalid_leaf_type, door_room_names_with_invalid_leaf_type, door_to_room_names_with_invalid_leaf_type, door_from_room_names_with_invalid_leaf_type, door_Selections_with_invalid_leaf_type)
+    print('\n ')
+    print('*'*216)
+
+####################################################################################################################
+
+elif userInputcategory == '15.Leaf Construction':
+    
+    out.print_md('**DOOR LEAF CONSTRUCTION CHECK- VALID/INVALID**')     
+    if len(doors_with_invalid_leaf_construction) == 0:
+        print('\nLeaf Construction for Doors with valid Functions are valid and meet the Design Requirements. ')
+    else:
+        print('\nLeaf Construction for the following Doors with valid Functions are invalid.\nPlease update the Leaf Construction for the following Doors as per Design Requirements. ')
+        door_numbers_with_invalid_leaf_construction = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_door_leaf_construction]
+        door_room_numbers_with_invalid_leaf_construction = shared_parameter_values(doors_with_invalid_leaf_construction, 'Room_Number')
+        door_room_names_with_invalid_leaf_construction = shared_parameter_values(doors_with_invalid_leaf_construction, 'Room_Name')
+        door_to_from_room_names_with_invalid_leaf_construction =  troom_froom_name_for_doors(doors_with_invalid_leaf_construction)
+        door_to_room_names_with_invalid_leaf_construction = door_to_from_room_names_with_invalid_leaf_construction[0]
+        door_from_room_names_with_invalid_leaf_construction = door_to_from_room_names_with_invalid_leaf_construction[1]
+        door_Selections_with_invalid_leaf_construction = [out.linkify(door.Id) for door in doors_with_invalid_leaf_construction]
+        
+        doors_with_invalid_leaf_construction_type_assigned = output_statement(door_numbers_with_invalid_leaf_construction, door_room_numbers_with_invalid_leaf_construction, door_room_names_with_invalid_leaf_construction, door_to_room_names_with_invalid_leaf_construction, door_from_room_names_with_invalid_leaf_construction, door_Selections_with_invalid_leaf_construction)
+    print('\n ')
+    print('*'*216)  
+
+####################################################################################################################
+
+elif userInputcategory == '16.Frame Elevation':
+
+    out.print_md('**DOOR FRAME ELEVATION CHECK- VALID/INVALID**')     
+    if len(doors_with_invalid_frame_elevation) == 0:
+        print('\nFrame Elevation for Doors with valid Functions are valid and meet the Design Requirements. ')
+    else:
+        print('\nFrame Elevation for the following Doors with valid Functions are invalid.\nPlease update the Frame Elevation for the following Doors as per Design Requirements. ')
+        door_numbers_with_invalid_frame_elevation = [e for i, e in enumerate(door_numbers_with_valid_functions) if i in set_index_of_mismatch_door_frame_elevation]
+        door_room_numbers_with_invalid_frame_elevation = shared_parameter_values(doors_with_invalid_frame_elevation, 'Room_Number')
+        door_room_names_with_invalid_frame_elevation = shared_parameter_values(doors_with_invalid_frame_elevation, 'Room_Name')
+        door_to_from_room_names_with_invalid_frame_elevation =  troom_froom_name_for_doors(doors_with_invalid_frame_elevation)
+        door_to_room_names_with_invalid_frame_elevation = door_to_from_room_names_with_invalid_frame_elevation[0]
+        door_from_room_names_with_invalid_frame_elevation = door_to_from_room_names_with_invalid_frame_elevation[1]
+        door_Selections_with_invalid_frame_elevation = [out.linkify(door.Id) for door in doors_with_invalid_frame_elevation]
+        
+        doors_with_invalid_frame_elevation_assigned = output_statement(door_numbers_with_invalid_frame_elevation, door_room_numbers_with_invalid_frame_elevation, door_room_names_with_invalid_frame_elevation, door_to_room_names_with_invalid_frame_elevation, door_from_room_names_with_invalid_frame_elevation, door_Selections_with_invalid_frame_elevation)
+    print('\n ')
+    print('*'*216) 
+        
+####################################################################################################################
+
+elif userInputcategory == '17.Frame Profile':
+
+    out.print_md('**DOOR FRAME PROFILE CHECK- ASSIGNED/NOT ASSIGNED**')  
+    if len(doors_with_no_frame_profile_assigned) == 0:
+        print('\nFrame Profile has been assigned to all Doors. ')
+    else:
+        print('\nFrame Profile for the following Doors have not been assigned. ')
+        door_numbers_with_no_frame_profile_assigned = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+        door_room_numbers_with_no_frame_profile_assigned = [door_room_numbers_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+        door_room_names_with_no_frame_profile_assigned = [door_room_names_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+        door_to_room_names_with_no_frame_profile_assigned = [door_to_room_names_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+        door_from_room_names_with_no_frame_profile_assigned = [door_from_room_names_with_valid_functions[i] for i in index_for_doors_with_no_frame_profile_assigned]
+        door_Selections_with_no_frame_profile_assigned = [out.linkify(door.Id) for door in doors_with_no_frame_profile_assigned]
+        
+        doors_with_no_frame_profile_assigned = output_statement(door_numbers_with_no_frame_profile_assigned, door_room_numbers_with_no_frame_profile_assigned, door_room_names_with_no_frame_profile_assigned, door_to_room_names_with_no_frame_profile_assigned, door_from_room_names_with_no_frame_profile_assigned, door_Selections_with_no_frame_profile_assigned)    
+    print('\n ')
+    print('*'*216)
+    
+    out.print_md('**DOOR FRAME PROFILE CHECK- VALID/INVALID**')  
+    if len(doors_with_invalid_frame_profile) == 0:
+        print("\nFrame Profile assigned to the Doors are valid and as per Design Requirements.")
+    else:
+        print('\nFrame Profile assigned to the Doors do not match the Design Requirements.\nPlease verify the Frame Profile for the Doors in the table below, against the Door Template for the project.')
+        door_numbers_with_invalid_frame_profile = [e for i, e in enumerate(door_numbers_with_frame_profile) if i in set_index_of_mismatch_door_with_frame_profile]
+        door_room_numbers_with_invalid_frame_profile = shared_parameter_values(doors_with_invalid_frame_profile, 'Room_Number')
+        door_room_names_with_invalid_frame_profile = shared_parameter_values(doors_with_invalid_frame_profile, 'Room_Name')
+        door_to_from_room_names_with_invalid_frame_profile = troom_froom_name_for_doors(doors_with_invalid_frame_profile)
+        door_to_room_names_with_invalid_frame_profile = door_to_from_room_names_with_invalid_frame_profile[0]
+        door_from_room_names_with_invalid_frame_profile = door_to_from_room_names_with_invalid_frame_profile[1]
+        door_Selections_with_invalid_frame_profile = [out.linkify(door.Id) for door in doors_with_invalid_frame_profile]
+        
+        doors_with_invalid_frame_profile_assigned = output_statement(door_numbers_with_invalid_frame_profile, door_room_numbers_with_invalid_frame_profile, door_room_names_with_invalid_frame_profile, door_to_room_names_with_invalid_frame_profile, door_from_room_names_with_invalid_frame_profile, door_Selections_with_invalid_frame_profile)
+    print('\n ')
+    print('*'*216)
+
+####################################################################################################################
+
+elif userInputcategory == '18.Saddle Type':
+
+    out.print_md('**DOOR SADDLE TYPE CHECK- ASSIGNED/NOT ASSIGNED**')  
+    if len(doors_with_no_saddle_type_assigned) == 0:
+        print('\nSaddle Type has been assigned to all Doors. ')
+    else:
+        print('\nSaddle Type for the following Doors have not been assigned. ')
+        door_numbers_with_no_saddle_type_assigned = [door_numbers_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+        door_room_numbers_with_no_saddle_type_assigned = [door_room_numbers_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+        door_room_names_with_no_saddle_type_assigned = [door_room_names_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+        door_to_room_names_with_no_saddle_type_assigned = [door_to_room_names_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+        door_from_room_names_with_no_saddle_type_assigned = [door_from_room_names_with_valid_functions[i] for i in index_for_doors_with_no_saddle_type_assigned]
+        door_Selections_with_no_saddle_type_assigned = [out.linkify(door.Id) for door in doors_with_no_saddle_type_assigned]
+        
+        doors_with_no_saddle_type_assigned = output_statement(door_numbers_with_no_saddle_type_assigned, door_room_numbers_with_no_saddle_type_assigned, door_room_names_with_no_saddle_type_assigned, door_to_room_names_with_no_saddle_type_assigned, door_from_room_names_with_no_saddle_type_assigned, door_Selections_with_no_saddle_type_assigned)    
+    print('\n ')
+    print('*'*216)
+    
+    out.print_md('**DOOR SADDLE TYPE CHECK- VALID/INVALID**')  
+    if len(doors_with_invalid_saddle_type) == 0:
+        print("\nSaddle Type assigned to the Doors are valid and as per Design Requirements.")
+    else:
+        print('\nSaddle Type assigned to the Doors do not match the Design Requirements.\nPlease verify the Saddle Type for the Doors in the table below, against the Door Template for the project.')
+        door_numbers_with_invalid_saddle_type = [e for i, e in enumerate(door_numbers_with_saddle_type) if i in set_index_of_mismatch_door_with_saddle_type]
+        door_room_numbers_with_invalid_saddle_type = shared_parameter_values(doors_with_invalid_saddle_type, 'Room_Number')
+        door_room_names_with_invalid_saddle_type = shared_parameter_values(doors_with_invalid_saddle_type, 'Room_Name')
+        door_to_from_room_names_with_invalid_saddle_type = troom_froom_name_for_doors(doors_with_invalid_saddle_type)
+        door_to_room_names_with_invalid_saddle_type = door_to_from_room_names_with_invalid_saddle_type[0]
+        door_from_room_names_with_invalid_saddle_type = door_to_from_room_names_with_invalid_saddle_type[1]
+        door_Selections_with_invalid_saddle_type = [out.linkify(door.Id) for door in doors_with_invalid_saddle_type]
+        
+        doors_with_invalid_saddle_type_assigned = output_statement(door_numbers_with_invalid_saddle_type, door_room_numbers_with_invalid_saddle_type, door_room_names_with_invalid_saddle_type, door_to_room_names_with_invalid_saddle_type, door_from_room_names_with_invalid_saddle_type, door_Selections_with_invalid_saddle_type)
+    print('\n ')
+    print('*'*216)
+    pass
+
 ####################################################################################################################
 
 else:
