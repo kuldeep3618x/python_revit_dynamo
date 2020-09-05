@@ -874,7 +874,7 @@ counter_interior_list = [generic_models[i] for i in index_of_counter_interior]
 counter_interior_list = list(counter_interior_list)
    
 index_of_counter_interior_workset = []
-index_of_counter_interior_workset = workset_names.index("Shared Levels and Grids")
+index_of_counter_interior_workset = workset_names.index("AIX_Furniture")
 counter_interior_workset_id = workset_ids[index_of_counter_interior_workset].IntegerValue
 
 # START TRANSACTION
@@ -2116,7 +2116,7 @@ index_of_Interior_Curtain_Wall_workset = workset_names.index("ARX_Internal")
 Interior_Curtain_Wall_workset_id = workset_ids[index_of_Interior_Curtain_Wall_workset].IntegerValue
 
 index_of_Exterior_Curtain_Wall_workset = []
-index_of_Exterior_Curtain_Wall_workset = workset_names.index("ARX_Internal")	# Add('ARX_External') for External Elements if any
+index_of_Exterior_Curtain_Wall_workset = workset_names.index("ARX_External")	# Add('ARX_External') for External Elements if any
 Exterior_Curtain_Wall_workset_id = workset_ids[index_of_Exterior_Curtain_Wall_workset].IntegerValue
 
 # revit_file_name
@@ -2153,7 +2153,7 @@ else:
             Interior_Curtain_Wall_fail_list.append(icw)
     t.Commit()
     
-    index_of_Ext_Curtain_Wall = [i for i, ecw in enumerate(Curtain_Wall_Names) if 'INT' not in ecw]  # Change to " if "'EXT' in " case of Exterior Skin
+    index_of_Ext_Curtain_Wall = [i for i, ecw in enumerate(Curtain_Wall_Names) if 'EXT' not in ecw]  # Change to " if "'EXT' in " case of Exterior Skin
     # print(index_of_Ext_Curtain_Wall)
     
     Exterior_Curtain_Wall_list = [Curtain_Wall_list[i] for i in index_of_Ext_Curtain_Wall]
@@ -2219,7 +2219,7 @@ interior_roof_list = [roof[i] for i in index_of_roof]
 interior_roof_list = list(interior_roof_list)
    
 index_of_interior_roof_workset = []
-index_of_interior_roof_workset = workset_names.index("AIX_Wall Finish")
+index_of_interior_roof_workset = workset_names.index("AIX_Ceiling")
 interior_roof_workset_id = workset_ids[index_of_interior_roof_workset].IntegerValue
 
 # START TRANSACTION
@@ -2243,7 +2243,7 @@ t.Commit()
 roof_opening = all_elements_of_category(BuiltInCategory.OST_RoofOpening)
    
 index_of_roof_opening = []
-index_of_roof_opening = workset_names.index("ARX_")
+index_of_roof_opening = workset_names.index("AIX_Ceiling")
 
 
 roof_opening_id = workset_ids[index_of_roof_opening].IntegerValue
@@ -2270,7 +2270,7 @@ t.Commit()
 windows = all_elements_of_category(BuiltInCategory.OST_Windows)
    
 index_of_windows = []
-index_of_windows = workset_names.index("ARX_Ceiling")
+index_of_windows = workset_names.index("ARX_Internal")
 
 
 windows_id = workset_ids[index_of_windows].IntegerValue
@@ -2292,4 +2292,30 @@ t.Commit()
 
 ###################################################################################################
 
+# Wall Sweeps
+
+# wall_sweep = all_elements_of_category(BuiltInCategory.OST_WallSweep)
+   
+# index_of_wall_sweep = []
+# index_of_wall_sweep = workset_names.index("ARX_Internal")
+
+
+# wall_sweep_id = workset_ids[index_of_wall_sweep].IntegerValue
+
+# # START TRANSACTION
+
+# wall_sweep_pass_list = list()
+# wall_sweep_fail_list = list()
+# t = Transaction(doc, 'script')
+# t.Start()
+# for wdw in wall_sweep:
+# 	try:
+# 		wall_sweep_param = wdw.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM)
+# 		wall_sweep_param.Set(wall_sweep_id)
+# 		wall_sweep_pass_list.append(wdw)
+# 	except:
+# 		wall_sweep_fail_list.append(wdw)
+# t.Commit()
+
+###################################################################################################
 
